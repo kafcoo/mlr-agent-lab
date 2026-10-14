@@ -694,8 +694,7 @@ window.addEventListener('DOMContentLoaded', () => {
 ::: {.panel-tabset}
 ### 📊 Tab 1: Leaderboard 4 rodin modelů (53 Trialů)
 
-Níže je kompletní porovnání nejlepších reprezentantů všech 4 rodin klasifikátorů:
-
+```{=html}
 <div class="table-responsive">
 <table class="table-editorial">
   <thead>
@@ -746,16 +745,18 @@ Níže je kompletní porovnání nejlepších reprezentantů všech 4 rodin klas
   </tbody>
 </table>
 </div>
+```
 
 ### 🗺️ Tab 2: Hranice rozhodování & Konfuzní matice
 
-<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: start;">
+```{=html}
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: start; margin-top: 14px;">
   <div style="flex: 1 1 420px;">
-    <h4 style="margin-top:0;">Finální rozhodovací hranice k-NN:</h4>
+    <h4 style="margin-top:0; color: #064e3b; font-weight: 700;">Finální rozhodovací hranice k-NN:</h4>
     <img src="results/decision_boundaries.png" style="width: 100%; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.05);" alt="Rozhodovací hranice" />
   </div>
   <div style="flex: 1 1 360px;">
-    <h4 style="margin-top:0;">Konfuzní matice (Holdout Test, n=99):</h4>
+    <h4 style="margin-top:0; color: #064e3b; font-weight: 700;">Konfuzní matice (Holdout Test, n=99):</h4>
     <div class="table-responsive" style="margin-top:0;">
     <table class="table-editorial" style="min-width: 320px;">
       <thead>
@@ -792,16 +793,19 @@ Níže je kompletní porovnání nejlepších reprezentantů všech 4 rodin klas
       </tbody>
     </table>
     </div>
-    <p style="font-size: 0.9rem; color: #475569;">
-      Celková přesnost na neviděných datech je <strong>90.91 %</strong> (9 chyb z 99). Javor je díky šířce listu identifikován s 95.2% spolehlivostí.
-    </p>
+    <div style="background: #f8fafc; border-left: 4px solid #059669; padding: 12px 14px; border-radius: 6px; font-size: 0.9rem; color: #334155; margin-top: 10px;">
+      <strong>Výsledek:</strong> Celková přesnost na neviděných datech je <strong>90.91 %</strong> (9 chyb z 99). Javor je díky šířce listu identifikován s 95.2% spolehlivostí.
+    </div>
   </div>
 </div>
+```
 
 ### 🔍 Tab 3: Pitevní analýza všech 9 chyb testovací sady (Error Autopsy)
 
+```{=html}
+<p style="margin-bottom: 12px; color: #475569;">
 Ze 99 testovacích vzorků model správně klasifikoval 90 vzorků. Zde je přesná pitva zbývajících 9 případů:
-
+</p>
 <div class="table-responsive">
 <table class="table-editorial">
   <thead>
@@ -880,6 +884,7 @@ Ze 99 testovacích vzorků model správně klasifikoval 90 vzorků. Zde je přes
   </tbody>
 </table>
 </div>
+```
 :::
 
 ---
