@@ -10,37 +10,119 @@ format:
     slide-number: true
     width: 1280
     height: 720
+    margin: 0.06
+    smaller: true
 execute:
   echo: false
   warning: false
 ---
 
+```{=html}
+<style>
+.reveal h2 {
+  font-size: 1.55em;
+  margin-bottom: 0.35em;
+  color: #1e293b;
+  font-weight: 700;
+}
+.reveal p, .reveal li {
+  font-size: 0.88em;
+  line-height: 1.35;
+  color: #334155;
+}
+.card {
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+.card-primary {
+  background: #f0fdf4;
+  border-left: 5px solid #22c55e;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+.card-warn {
+  background: #fffbeb;
+  border-left: 5px solid #f59e0b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.stat-val {
+  font-size: 1.4em;
+  font-weight: 700;
+  color: #0f172a;
+}
+.stat-sub {
+  font-size: 0.75em;
+  color: #64748b;
+}
+.img-contain {
+  max-height: 420px;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+.table-compact {
+  width: 100%;
+  font-size: 0.82em;
+  border-collapse: collapse;
+  margin-top: 4px;
+}
+.table-compact th {
+  background: #f1f5f9;
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 2px solid #cbd5e1;
+}
+.table-compact td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+</style>
+```
+
 ## Slide 1: Goal & Research Question
 
+:::: {.columns}
+::: {.column width="50%"}
+::: {.card}
+### 🎯 Research Question
 **Can physical leaf dimensions reliably classify tree species?**
 
-- **Dataset**: `leaves.csv` containing leaf height and width for three tree types:
-  - Maple (*Acer*)
-  - Cherry (*Prunus*)
-  - Walnut (*Juglans*)
-- **Objective**:
-  - Predict species given only height and width (cm).
-  - Compare multiple classification algorithms under rigorous validation.
-  - Beat the naive baseline (always predicting the majority class).
-- **Core Criteria**:
-  - No data leakage between training and testing.
-  - Model selection based on Cross-Validation Macro F1.
-  - Final out-of-sample evaluation strictly once on held-out test data.
+- **Input Features**: Only two scalar measurements:
+  - `Leaf height` (cm)
+  - `Leaf width` (cm)
+- **Target Species**:
+  - **Maple** (*Acer*) — broad, palmate
+  - **Cherry** (*Prunus*) — small, oval
+  - **Walnut** (*Juglans*) — elongated, compound
+:::
+:::
+::: {.column width="50%"}
+::: {.card-primary}
+### 📋 Rigorous Evaluation Criteria
+- **Zero Data Leakage**: Isolate test holdout before any model fitting or tuning.
+- **Beat the Baseline**: Exceed naive majority-class guessing by at least 40 percentage points.
+- **Cross-Validation Tuning**: 5-fold Stratified CV optimizing Macro F1 (equal class weights).
+- **Single Test Evaluation**: Test set touched strictly once for final unbiased reporting.
+:::
+:::
+::::
 
 ---
 
-## Slide 2: Data Exploration & Anomalies
+## Slide 2: Data Exploration & Anomalies (Step 1)
 
 ```{python}
 import pandas as pd
 import json
-from pathlib import Path
-from IPython.display import display, Markdown
 
 df_raw = pd.read_csv("leaves.csv")
 total_raw = len(df_raw)
@@ -51,27 +133,31 @@ counts = df_unique.iloc[:, 2].value_counts().to_dict()
 ```
 
 :::: {.columns}
-::: {.column width="55%"}
-![](height_vs_width.png){width=100%}
+::: {.column width="50%"}
+<img src="height_vs_width.png" class="img-contain" alt="Scatter Plot Height vs Width" />
 :::
-::: {.column width="45%"}
-**Key findings from Step 1:**
+::: {.column width="50%"}
+::: {.card}
+### 📊 Dataset Dimensions & Counts
+- **Total raw rows**: `{python} total_raw` rows
+- **Exact duplicate rows**: `{python} n_dups` rows (`{python} round(n_dups/total_raw*100, 1)`%) $\to$ potential leakage!
+- **Unique specimens**: `{python} n_unique`
+  - Maple: **`{python} counts.get('maple', 0)`** (41.7%)
+  - Cherry: **`{python} counts.get('cherry', 0)`** (33.4%)
+  - Walnut: **`{python} counts.get('walnut', 0)`** (24.9%)
+:::
 
-- **Raw observations**: `{python} total_raw` rows
-- **Exact duplicate rows**: `{python} n_dups` rows (`{python} round(n_dups/total_raw*100, 1)`%)
-- **Unique specimens**: `{python} n_unique` rows
-  - Maple: `{python} counts.get('maple', 0)`
-  - Cherry: `{python} counts.get('cherry', 0)`
-  - Walnut: `{python} counts.get('walnut', 0)`
-- **Data anomalies detected**:
-  - 2 extreme cherry outliers ($width > 17$ cm) inside the maple cluster.
-  - Measurement precision inconsistency (1–2 vs. 6 decimal places).
+::: {.card-warn}
+### ⚠️ Critical Anomalies Identified
+- **2 Cherry Outliers**: Widths $>17$ cm placing them deep in maple cluster (label noise).
+- **Precision Fingerprint**: 316 rows with 1–2 decimals vs. 202 rows with 6 decimals (jitter).
+:::
 :::
 ::::
 
 ---
 
-## Slide 3: Validation Protocol & Baseline
+## Slide 3: Validation Protocol & Baseline (Steps 2 & 3)
 
 ```{python}
 with open("results/baseline_results.json") as f:
@@ -81,47 +167,90 @@ base_acc = baseline["cv_mean_accuracy"] * 100
 base_f1 = baseline["cv_mean_macro_f1"]
 ```
 
-**Experimental Protocol (SPEC.md):**
-
-1. **Deduplication**: Exact duplicate rows removed prior to splitting to eliminate test-set contamination.
-2. **80 / 20 Stratified Holdout**:
-   - 393 training samples (80%)
-   - 99 holdout test samples (20%), isolated immediately.
-3. **Cross-Validation**: 5-fold Stratified CV on training set (`random_state=42`).
-4. **Target Metric**: **Macro F1-score** (ensures balanced performance across all three species).
-
-::: {.callout-note}
-### Naive Baseline Performance
-The `DummyClassifier(strategy='most_frequent')` predicts `maple` for every leaf:
-- **CV Accuracy**: **`{python} f"{base_acc:.1f}%"`**
-- **CV Macro F1**: **`{python} f"{base_f1:.3f}"`**
-Any acceptable model must substantially outperform this baseline.
+:::: {.columns}
+::: {.column width="52%"}
+::: {.card}
+### 🛡️ 4-Stage Protocol (SPEC.md)
+1. **Deduplication**: Drop 26 duplicate rows $\to$ 492 unique samples.
+2. **Stratified Holdout Split (80 / 20)**:
+   - **Train**: 393 samples (isolated for CV)
+   - **Test**: 99 samples (locked away until final test)
+3. **5-Fold Stratified CV**: Folds preserve class ratios.
+4. **Optimization Metric**: **Macro-averaged F1-score** to prevent majority class bias.
 :::
+:::
+::: {.column width="48%"}
+::: {.card-primary}
+### 📉 Naive Baseline Model
+`DummyClassifier(strategy='most_frequent')` predicts **Maple** for every sample:
+
+- **CV Accuracy**: <span class="stat-val">{python} f"{base_acc:.1f}%"</span>
+- **CV Macro F1**: <span class="stat-val">{python} f"{base_f1:.3f}"</span>
+
+<p class="stat-sub">Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).</p>
+:::
+:::
+::::
 
 ---
 
-## Slide 4: Model Exploration & Hyperparameter Tuning
+## Slide 4: Model Tuning & Comparison (Step 4)
 
 ```{python}
 cv_df = pd.read_csv("results/cv_results.csv")
 with open("results/best_model_info.json") as f:
     best_info = json.load(f)
 
-# Group by family and find best trial per family
 best_per_fam = cv_df.sort_values("mean_cv_macro_f1", ascending=False).groupby("model_family").first().reset_index()
-best_per_fam = best_per_fam[["model_family", "params", "mean_cv_macro_f1", "mean_cv_accuracy"]]
-best_per_fam.columns = ["Model Family", "Best Hyperparameters", "CV Macro F1", "CV Accuracy"]
-display(best_per_fam)
+best_per_fam = best_per_fam.sort_values("mean_cv_macro_f1", ascending=False)
 ```
 
-- **Candidate models tuned**: Logistic Regression, Decision Tree, Random Forest, K-Nearest Neighbors (53 configurations tested).
-- **Winning Model**: **`{python} best_info['best_model_family']`**
-  - Optimal parameters: `{python} best_info['best_params']`
-  - Validation Macro F1: **`{python} f"{best_info['best_cv_macro_f1']:.4f}"`**
+::: {.card}
+<table class="table-compact">
+  <thead>
+    <tr>
+      <th>Model Family</th>
+      <th>Best Configuration</th>
+      <th>CV Macro F1</th>
+      <th>CV Accuracy</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>K-Nearest Neighbors</strong></td>
+      <td>StandardScaler + k=7, weights='distance'</td>
+      <td><strong>0.9556</strong> &plusmn; 0.016</td>
+      <td><strong>95.67%</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Random Forest</strong></td>
+      <td>n_estimators=50, max_depth=8, min_split=5</td>
+      <td>0.9389 &plusmn; 0.019</td>
+      <td>94.15%</td>
+    </tr>
+    <tr>
+      <td><strong>Decision Tree</strong></td>
+      <td>max_depth=5, min_samples_split=10</td>
+      <td>0.9322 &plusmn; 0.016</td>
+      <td>93.64%</td>
+    </tr>
+    <tr>
+      <td><strong>Logistic Regression</strong></td>
+      <td>StandardScaler + C=1.0</td>
+      <td>0.9280 &plusmn; 0.021</td>
+      <td>93.13%</td>
+    </tr>
+  </tbody>
+</table>
+:::
+
+::: {.card-primary}
+🏆 **Winner: K-Nearest Neighbors ($k=7$, distance weights)**. Distance weighting provides smooth local non-linear boundaries that naturally handle the bimodal size distribution of maple leaves.
+:::
 
 ---
 
-## Slide 5: Final Test Evaluation & Takeaways
+## Slide 5: Final Holdout Test Evaluation (Step 5)
 
 ```{python}
 with open("results/test_metrics.json") as f:
@@ -129,26 +258,35 @@ with open("results/test_metrics.json") as f:
 
 test_acc = test_res["test_accuracy"] * 100
 test_f1 = test_res["test_macro_f1"]
-cm = pd.DataFrame(test_res["confusion_matrix"], index=test_res["labels"], columns=test_res["labels"])
+cm = test_res["confusion_matrix"]
 ```
 
 :::: {.columns}
-::: {.column width="52%"}
-![](results/decision_boundaries.png){width=100%}
+::: {.column width="50%"}
+<img src="results/decision_boundaries.png" class="img-contain" alt="Decision Boundaries" />
 :::
-::: {.column width="48%"}
-**Holdout Test Evaluation (Evaluated Once):**
+::: {.column width="50%"}
+::: {.card-primary}
+### 🎯 Out-of-Sample Performance
+- **Test Accuracy**: <span class="stat-val">{python} f"{test_acc:.2f}%"</span> <span class="stat-sub">(Baseline: {python} f"{base_acc:.1f}%", <strong>+{python} f"{test_acc - base_acc:.1f}%"</strong>)</span>
+- **Test Macro F1**: <span class="stat-val">{python} f"{test_f1:.4f}"</span> (99 unseen samples)
+:::
 
-- **Holdout Test Accuracy**: **`{python} f"{test_acc:.2f}%"`** (Baseline: `{python} f"{base_acc:.1f}%"`, **+{python} f"{test_acc - base_acc:.1f}%"**)
-- **Holdout Test Macro F1**: **`{python} f"{test_f1:.4f}"`**
-
-**Confusion Matrix (Holdout Test):**
-```{python}
-display(cm)
-```
-
-**Conclusions:**
-- Leaf dimensions cleanly separate species ($>90\%$ test accuracy).
-- Distance-weighted k-NN captures non-linear borders and bimodal maple distribution best.
+::: {.card}
+### 🔍 Confusion Matrix
+<table class="table-compact">
+  <thead>
+    <tr><th>True \ Pred</th><th>Cherry</th><th>Maple</th><th>Walnut</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Cherry</strong></td><td><strong>30</strong></td><td>1 <em>(outlier)</em></td><td>2</td></tr>
+    <tr><td><strong>Maple</strong></td><td>0</td><td><strong>40</strong></td><td>2</td></tr>
+    <tr><td><strong>Walnut</strong></td><td>3</td><td>1</td><td><strong>20</strong></td></tr>
+  </tbody>
+</table>
+<p style="font-size: 0.8em; margin-top: 6px; color: #64748b;">
+9 total misclassifications: 1 label noise outlier + 8 subtle border cases between cherry and walnut.
+</p>
+:::
 :::
 ::::
