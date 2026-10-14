@@ -1,0 +1,66 @@
+{
+  "model_family": "K-Nearest Neighbors",
+  "hyperparameters": {
+    "clf__n_neighbors": 7,
+    "clf__weights": "distance"
+  },
+  "test_samples": 99,
+  "test_accuracy": 0.9090909090909091,
+  "test_macro_f1": 0.8982683982683982,
+  "test_weighted_f1": 0.9090909090909091,
+  "labels": [
+    "cherry",
+    "maple",
+    "walnut"
+  ],
+  "confusion_matrix": [
+    [
+      30,
+      1,
+      2
+    ],
+    [
+      0,
+      40,
+      2
+    ],
+    [
+      3,
+      1,
+      20
+    ]
+  ],
+  "classification_report": {
+    "cherry": {
+      "precision": 0.9090909090909091,
+      "recall": 0.9090909090909091,
+      "f1-score": 0.9090909090909091,
+      "support": 33.0
+    },
+    "maple": {
+      "precision": 0.9523809523809523,
+      "recall": 0.9523809523809523,
+      "f1-score": 0.9523809523809523,
+      "support": 42.0
+    },
+    "walnut": {
+      "precision": 0.8333333333333334,
+      "recall": 0.8333333333333334,
+      "f1-score": 0.8333333333333334,
+      "support": 24.0
+    },
+    "accuracy": 0.9090909090909091,
+    "macro avg": {
+      "precision": 0.8982683982683982,
+      "recall": 0.8982683982683982,
+      "f1-score": 0.8982683982683982,
+      "support": 99.0
+    },
+    "weighted avg": {
+      "precision": 0.9090909090909091,
+      "recall": 0.9090909090909091,
+      "f1-score": 0.9090909090909091,
+      "support": 99.0
+    }
+  }
+}

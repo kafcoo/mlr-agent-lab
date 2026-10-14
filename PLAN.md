@@ -19,6 +19,8 @@ and keep the "script runs cleanly" check as the bar.
 - [x] `README.md`, `PLAN.md`, `RUNS.md` created
 - [x] `uv` and `gh` installed via Homebrew, no admin rights
 - [x] Assignment "Medium · Slides with an animation, then a PDF note" completed in `slides-with-animation-pdf-note/` (Quarto presentation + Tectonic 1-page PDF note)
+- [x] Assignment "leaves2" ML pipeline completed in `leaves2/` (data exploration, SPEC.md, baseline DummyClassifier, hyperparameter tuning across 4 model families, final holdout test evaluation, Quarto 5-slide presentation, and reproducible report)
+- [x] `.gitignore` created (.venv/, __pycache__/, *.pyc, .DS_Store)
 
 ## Open questions
 
@@ -30,5 +32,4 @@ and keep the "script runs cleanly" check as the bar.
 
 ## Backlog
 
-- Add `.gitignore` (`.DS_Store`, `__pycache__/`, `*.pyc`, `.venv/`)
 - First real experiment: pick a task worth logging in `RUNS.md`

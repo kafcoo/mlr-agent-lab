@@ -1,0 +1,9 @@
+{
+  "best_model_family": "K-Nearest Neighbors",
+  "best_params": {
+    "clf__n_neighbors": 7,
+    "clf__weights": "distance"
+  },
+  "best_cv_macro_f1": 0.9556438870616895,
+  "total_configurations_tested": 53
+}

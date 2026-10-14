@@ -1,0 +1,8 @@
+{
+  "model": "DummyClassifier(strategy='most_frequent')",
+  "predicted_class": "maple",
+  "cv_mean_macro_f1": 0.19797297297297295,
+  "cv_std_macro_f1": 0.0023080960662111827,
+  "cv_mean_accuracy": 0.42242778318727686,
+  "cv_std_accuracy": 0.007046980841287942
+}

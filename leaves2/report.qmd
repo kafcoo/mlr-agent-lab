@@ -1,0 +1,116 @@
+---
+title: "Leaf Species Classification Report"
+subtitle: "Complete Reproducible ML Experiment"
+author: "Tomáš Kaválek"
+date: "2026-10-14"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+execute:
+  echo: false
+  warning: false
+---
+
+# Executive Summary
+
+This report documents the machine learning experiments conducted on `leaves.csv` in strict adherence to `SPEC.md`. The goal is to accurately classify leaf specimens as `cherry`, `maple`, or `walnut` from their physical dimensions (`height` and `width`).
+
+```{python}
+import json
+import pandas as pd
+from IPython.display import display, Markdown
+
+with open("results/baseline_results.json") as f:
+    baseline = json.load(f)
+
+with open("results/best_model_info.json") as f:
+    best_info = json.load(f)
+
+with open("results/test_metrics.json") as f:
+    test_res = json.load(f)
+
+cv_df = pd.read_csv("results/cv_results.csv")
+preds_df = pd.read_csv("results/test_predictions.csv")
+```
+
+The selected champion model is **`{python} best_info['best_model_family']`** (`{python} best_info['best_params']`), achieving:
+- **Test Accuracy**: **`{python} f"{test_res['test_accuracy']*100:.2f}%"`** (Baseline: `{python} f"{baseline['cv_mean_accuracy']*100:.2f}%"`)
+- **Test Macro F1**: **`{python} f"{test_res['test_macro_f1']:.4f}"`** (Baseline: `{python} f"{baseline['cv_mean_macro_f1']:.4f}"`)
+
+---
+
+# 1. Exploratory Data Analysis & Anomalies
+
+```{python}
+df_raw = pd.read_csv("leaves.csv")
+n_raw = len(df_raw)
+n_unique = len(df_raw.drop_duplicates())
+n_dups = n_raw - n_unique
+```
+
+The dataset originally contains `{python} n_raw` rows. Key findings from Step 1 include:
+
+1. **Exact Duplicates**: `{python} n_dups` rows are exact duplicates of other records (`{python} round(n_dups/n_raw*100, 1)`%). Naive random splitting would have caused data leakage between train and test sets. All duplicates were removed prior to train/test partitioning, leaving `{python} n_unique` unique observations.
+2. **Precision Discrepancy**: Rows exhibit two distinct precision levels (1–2 decimals vs. 6 decimals), consistent with synthetic jittering or mixed measurement equipment.
+3. **Outliers**: Two cherry leaves have widths exceeding 17 cm, placing them deep within the maple region.
+
+![Height vs Width by Tree Type](height_vs_width.png){width=80%}
+
+---
+
+# 2. Experimental Validation Setup
+
+- **Deduplication**: Dataset deduplicated to `{python} n_unique` unique observations.
+- **Train/Test Partition**: Stratified 80/20 holdout split (`random_state=42`), setting aside `{python} test_res['test_samples']` samples for final evaluation.
+- **Cross-Validation**: 5-fold Stratified Cross-Validation on the 80% training set (`random_state=42`).
+- **Primary Metric**: Macro-averaged F1 score (`f1_macro`).
+
+### Baseline Model
+A `DummyClassifier(strategy="most_frequent")` was evaluated on the 5 CV folds:
+- **CV Macro F1**: `{python} f"{baseline['cv_mean_macro_f1']:.4f}"`
+- **CV Accuracy**: `{python} f"{baseline['cv_mean_accuracy']*100:.2f}%"`
+
+---
+
+# 3. Model Tuning & Comparison
+
+A total of `{python} len(cv_df)` hyperparameter configurations across 4 model families were explored via 5-fold cross-validation.
+
+### Best Configuration per Model Family
+```{python}
+best_per_fam = cv_df.sort_values("mean_cv_macro_f1", ascending=False).groupby("model_family").first().reset_index()
+best_per_fam = best_per_fam[["model_family", "params", "mean_cv_macro_f1", "std_cv_macro_f1", "mean_cv_accuracy"]]
+best_per_fam.columns = ["Model Family", "Best Hyperparameters", "CV Macro F1", "Std F1", "CV Accuracy"]
+display(best_per_fam)
+```
+
+The **K-Nearest Neighbors** classifier proved superior, benefiting from feature scaling and distance-weighted voting which accommodates the bimodal cluster shape of maples.
+
+---
+
+# 4. Final Evaluation on Holdout Test Set
+
+The champion model was refit on the full training set and evaluated strictly once on the heldout test set.
+
+- **Holdout Test Accuracy**: **`{python} f"{test_res['test_accuracy']*100:.2f}%"`**
+- **Holdout Test Macro F1**: **`{python} f"{test_res['test_macro_f1']:.4f}"`**
+
+### Confusion Matrix
+```{python}
+cm = pd.DataFrame(test_res["confusion_matrix"], index=test_res["labels"], columns=test_res["labels"])
+display(cm)
+```
+
+![Decision Boundaries & Holdout Test Points](results/decision_boundaries.png){width=85%}
+
+---
+
+# 5. Conclusion & Verification
+
+All criteria defined in `SPEC.md` were successfully met:
+- Baseline beaten by **`{python} f"{(test_res['test_accuracy'] - baseline['cv_mean_accuracy'])*100:.2f}"` percentage points** (required: >40%).
+- Data leakage eliminated via pre-split deduplication.
+- Fully reproducible end-to-end via `uv run python leaves2/train.py`.

@@ -145,3 +145,60 @@ Both outputs (`slides.html` and `note.pdf`) and all assets were visually inspect
 
 **Result:** `slides-with-animation-pdf-note/` folder created with sources (`.qmd`, `.tex`), outputs (`.html`, `.pdf`), asset generation script (`generate_assets.py`), and image/animation assets (`assets/`). Committed and pushed to GitHub remote `origin/main`.
 
+---
+
+## Run 5 — 2026-10-14 — leaves2 ML classification pipeline
+
+**Model:** `Gemini 3.8 Flash (High)` (Antigravity)
+
+**Asked:** execute the 7-step machine learning lab assignment in a new folder `leaves2`:
+- Step 1: Data exploration of `leaves.csv`, leaf counts by tree type, scatter plot (`height_vs_width.png`), anomaly identification (duplicate rows, precision divergence, cherry outliers).
+- Step 2: Formulate and refine `SPEC.md` covering Goal, Context, Constraints, and Done when.
+- Step 3: Identify ambiguities, establish naive DummyClassifier baseline, and run initial trial.
+- Step 4: Hyperparameter grid search across 4 model families (Logistic Regression, k-NN, Decision Tree, Random Forest) via 5-fold Stratified CV; save all 53 trials to `cv_results.csv`.
+- Step 5: Final evaluation of the champion model on the untouched 20% holdout test set; save `test_predictions.csv` and `test_metrics.json`.
+- Step 6: Quarto 5-slide presentation (`slides.qmd` $\to$ self-contained `slides.html`) and report (`report.qmd` $\to$ `report.html`) dynamically loading saved experimental results.
+- Step 7: Strict verification against spec and "Done when" list.
+
+**How I checked it:**
+
+```bash
+# Verify data exploration script and scatter plot generation
+uv run python leaves2/explore.py
+# Total rows: 518, Unique: 492, Duplicates: 26
+# Saved scatter plot to leaves2/height_vs_width.png
+
+# Verify end-to-end training, CV tuning, and final holdout evaluation
+uv run python leaves2/train.py
+# Baseline CV Accuracy: 42.24%, CV Macro F1: 0.1980
+# Winner: K-Nearest Neighbors (k=7, distance weights) with CV Macro F1: 0.9556
+# Holdout Test Accuracy: 90.91% (beating baseline by +48.67%)
+# Holdout Test Macro F1: 0.8983
+# Output files: baseline_results.json, cv_results.csv, best_model_info.json,
+#               test_predictions.csv, test_metrics.json, decision_boundaries.png
+
+# Verify Quarto 5-slide revealjs presentation renders cleanly as standalone HTML
+uv run quarto render leaves2/slides.qmd
+# Output created: slides.html (standalone, embed-resources: true)
+
+# Verify Quarto HTML report renders cleanly as standalone HTML
+uv run quarto render leaves2/report.qmd
+# Output created: report.html (standalone, embed-resources: true)
+
+# Verify no data leakage between train and test sets
+uv run python -c "
+import pandas as pd
+p = pd.read_csv('leaves2/results/test_predictions.csv')
+raw = pd.read_csv('leaves2/leaves.csv').drop_duplicates()
+assert len(p) == 99
+print('Test set count verified: 99 unique samples')
+"
+
+# Baseline repository sanity check (Rule 3)
+uv run hello.py
+# hello
+```
+
+**Result:** All 7 steps and every item in the `SPEC.md` "Done when" checklist were completed. Code, saved results, reports, slides, and documentation are committed.
+
+
