@@ -18,6 +18,7 @@ and keep the "script runs cleanly" check as the bar.
 - [x] Working rules written: `AGENTS.md`, imported by `CLAUDE.md`
 - [x] `README.md`, `PLAN.md`, `RUNS.md` created
 - [x] `uv` and `gh` installed via Homebrew, no admin rights
+- [x] Assignment "Medium · Slides with an animation, then a PDF note" completed in `slides-with-animation-pdf-note/` (Quarto presentation + Tectonic 1-page PDF note)
 
 ## Open questions
 

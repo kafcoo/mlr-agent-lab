@@ -105,3 +105,43 @@ instructions are known-good rather than assumed.
 **Caveat:** `CLAUDE.md` uses the `@AGENTS.md` import syntax. Whether Claude
 Code picks it up automatically was **not** verified in a fresh session — it
 will only be provable on the next session start.
+
+---
+
+## Run 4 — 2026-10-14 — slides with animation and PDF note
+
+**Model:** `Gemini 3.8 Flash (High)` (Antigravity)
+
+**Asked:** implement the assignment "Medium · Slides with an animation, then a PDF note" based on the Snake game. Put all outputs in a dedicated folder named according to the assignment (`slides-with-animation-pdf-note`), commit and push to GitHub.
+
+Requirements fulfilled:
+- Quarto presentation: exactly 5 slides, little text, speaker notes on every slide, architecture diagram on slide 2 (satisfying change request to replace text with a picture), gameplay animation on slide 3 with first frame showing final state and last frame held.
+- LaTeX note: compiled with Tectonic to PDF, exactly 1 page (A4), table of dimensions, large figure (satisfying change request to make figure larger without adding a second page), commands to rebuild, links to viewer and script.
+
+**How I checked it:**
+
+```bash
+# Verify Quarto presentation compiles cleanly to revealjs HTML
+quarto render slides-with-animation-pdf-note/slides.qmd
+# Output created: slides.html
+
+# Verify LaTeX note compiles cleanly to PDF with zero warnings
+tectonic slides-with-animation-pdf-note/note.tex
+# Writing `slides-with-animation-pdf-note/note.pdf`
+
+# Verify PDF page count is exactly 1 page
+mdls -name kMDItemNumberOfPages slides-with-animation-pdf-note/note.pdf
+# kMDItemNumberOfPages = 1
+
+# Verify baseline Python execution rule
+uv run hello.py
+# hello
+
+# Verify git clean status of staged work
+git status --short
+```
+
+Both outputs (`slides.html` and `note.pdf`) and all assets were visually inspected and verified.
+
+**Result:** `slides-with-animation-pdf-note/` folder created with sources (`.qmd`, `.tex`), outputs (`.html`, `.pdf`), asset generation script (`generate_assets.py`), and image/animation assets (`assets/`). Committed and pushed to GitHub remote `origin/main`.
+

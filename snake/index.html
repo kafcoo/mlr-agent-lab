@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Snake</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🐍</text></svg>">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --line: #262d38;
+    --ink: #d7dee8;
+    --muted: #7d8796;
+    --snake: #3fd68c;
+    --snake-dim: #1f7a51;
+    --food: #ff6b6b;
+    --accent: #ffd166;
+  }
+
+  * { box-sizing: border-box; }
+
+  :root {
+    /* Board edge: the smaller of a 560px cap, 90% of the narrow axis, or
+       whatever is left after the header and footer (about 124px of chrome).
+       Without the last term a landscape window sizes the board from its
+       height and pushes the footer off-screen. */
+    --size: min(560px, 90vmin, calc(100vh - 124px));
+  }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 500 15px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    width: var(--size);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-left: auto;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stats b { color: var(--ink); font-weight: 600; }
+  .stats .best b { color: var(--accent); }
+
+  .stage {
+    position: relative;
+    width: var(--size);
+    aspect-ratio: 1;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    background: rgba(13, 17, 23, 0.82);
+    backdrop-filter: blur(2px);
+    padding: 20px;
+  }
+
+  .overlay.show { display: flex; }
+  .overlay h2 { margin: 0; font-size: 22px; letter-spacing: 0.08em; }
+  .overlay p { margin: 0; color: var(--muted); }
+  .overlay .key { color: var(--accent); }
+
+  footer {
+    width: var(--size);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  kbd {
+    font: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--ink);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Snake</h1>
+  <div class="stats">
+    <span>score <b id="score">0</b></span>
+    <span class="best">best <b id="best">0</b></span>
+  </div>
+</header>
+
+<div class="stage">
+  <canvas id="board" width="500" height="500" aria-label="Snake board"></canvas>
+  <div class="overlay show" id="overlay">
+    <h2 id="overlayTitle">Snake</h2>
+    <p id="overlayBody">Press any arrow key or <span class="key">Space</span> to start</p>
+  </div>
+</div>
+
+<footer>
+  <span><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> / <kbd>WASD</kbd> steer</span>
+  <span><kbd>Space</kbd> pause</span>
+  <span><kbd>R</kbd> restart</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Game constants
+ * ------------------------------------------------------------------ */
+
+const COLS = 21;
+const ROWS = 21;
+const TICK_MS = 110;          // milliseconds between snake moves
+const START_LENGTH = 4;
+
+/* Rotating-board variant. Every `spinEvery` pellets the world turns a
+   quarter: the snake's body and the food are carried round, but the
+   direction of travel is *not* — the board spins underneath you. A spin
+   is therefore never an instant death (see pickHeading), but it leaves
+   you travelling in a direction that no longer matches your own body. */
+const SPIN_EVERY = 4;         // pellets per quarter turn
+const SPIN_GRACE_MS = 320;    // simulation pause so the board can be re-read
+
+const DIRS = {
+  up:    { x: 0, y: -1 },
+  down:  { x: 0, y: 1 },
+  left:  { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+};
+
+// Quarter-turn images of a heading. Clockwise: right -> down -> left -> up.
+const CW = { up: "right", right: "down", down: "left", left: "up" };
+const CCW = { up: "left", left: "down", down: "right", right: "up" };
+
+const KEY_DIRS = {
+  ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+  KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right",
+};
+
+/* ------------------------------------------------------------------ *
+ * Deterministic RNG so the self-test can replay a game exactly.
+ * ------------------------------------------------------------------ */
+
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const key = (p) => p.x + "," + p.y;
+
+/* ------------------------------------------------------------------ *
+ * Game state
+ * ------------------------------------------------------------------ */
+
+function createGame(options = {}) {
+  const cols = options.cols ?? COLS;
+  const rows = options.rows ?? ROWS;
+  const startY = Math.floor(rows / 2);
+  const startX = Math.floor(cols / 2) - Math.floor(START_LENGTH / 2);
+
+  const snake = options.snake
+    ?? Array.from({ length: START_LENGTH }, (_, i) => ({ x: startX + START_LENGTH - 1 - i, y: startY }));
+
+  const game = {
+    cols,
+    rows,
+    snake,
+    dir: options.dir ?? "right",
+    queued: [],           // buffered turns, consumed one per tick
+    food: options.food ?? null,
+    score: 0,
+    status: "ready",      // ready | running | paused | over
+    rng: makeRng(options.seed ?? 1),
+    elapsed: 0,
+    spins: 0,             // quarter turns taken so far
+    grace: 0,             // ms of re-reading time left after a spin
+    events: [],           // one-shot notices drained by the UI each tick
+  };
+
+  if (!game.food) game.food = spawnFood(game);
+  return game;
+}
+
+function freeCells(game) {
+  const taken = new Set(game.snake.map(key));
+  const cells = [];
+  for (let y = 0; y < game.rows; y++) {
+    for (let x = 0; x < game.cols; x++) {
+      if (!taken.has(x + "," + y)) cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
+function spawnFood(game) {
+  const cells = freeCells(game);
+  if (cells.length === 0) return null;   // board is full — nothing left to place
+  return cells[Math.floor(game.rng() * cells.length)];
+}
+
+/* ------------------------------------------------------------------ *
+ * Rotation
+
+   Rotating a square board is a bijection on its cells: distinct cells
+   stay distinct, and in-bounds cells stay in-bounds. So carrying the
+   whole snake round can never overlap it with itself, push it off the
+   board, or drop the food inside it. A spin therefore never kills you
+   on the spot — the only way a spin gets you killed is that it leaves
+   your direction of travel pointing somewhere your body is about to be.
+
+   The direction deliberately does *not* rotate with the world. Turning
+   the heading too would make the spin a pure relabeling: the game would
+   be exactly equivalent to no rotation at all, just harder to look at.
+ * ------------------------------------------------------------------ */
+
+function rotateDelta(dx, dy, times) {
+  let x = dx;
+  let y = dy;
+  for (let i = 0; i < ((times % 4) + 4) % 4; i++) {
+    const nx = -y;          // clockwise on a y-down screen
+    const ny = x;
+    x = nx;
+    y = ny;
+  }
+  return { x, y };
+}
+
+function rotatePoint(p, n, times) {
+  const r = rotateDelta(p.x - (n - 1) / 2, p.y - (n - 1) / 2, times);
+  return { x: Math.round(r.x + (n - 1) / 2), y: Math.round(r.y + (n - 1) / 2) };
+}
+
+// Direction of the next spin: +1 clockwise, -1 counter-clockwise, alternating.
+function nextSpin(game) {
+  return game.spins % 2 === 0 ? 1 : -1;
+}
+
+function spinBoard(game) {
+  const times = nextSpin(game);
+  const n = game.cols;
+  game.snake = game.snake.map((p) => rotatePoint(p, n, times));
+  if (game.food) game.food = rotatePoint(game.food, n, times);
+  game.spins += times;
+  game.grace = SPIN_GRACE_MS;
+  game.events.push({ type: "spin", times });
+  return times;
+}
+
+/* ------------------------------------------------------------------ *
+ * Rules — one tick of the game
+ * ------------------------------------------------------------------ */
+
+function enqueueTurn(game, name) {
+  if (!(name in DIRS)) return;
+  const last = game.queued.length ? game.queued[game.queued.length - 1] : game.dir;
+  if (name === last) return;                                     // no-ops
+  if (DIRS[name].x === -DIRS[last].x && DIRS[name].y === -DIRS[last].y) return;  // no reversing
+  if (game.queued.length < 3) game.queued.push(name);
+}
+
+function step(game) {
+  if (game.status !== "running") return;
+
+  // After a spin the simulation holds still for a beat so the board can be
+  // re-read. Frozen here rather than in the UI so a replay is reproducible.
+  if (game.grace > 0) {
+    game.grace = Math.max(0, game.grace - TICK_MS);
+    return;
+  }
+
+  if (game.queued.length) game.dir = game.queued.shift();
+  const d = DIRS[game.dir];
+  const head = game.snake[0];
+  const next = { x: head.x + d.x, y: head.y + d.y };
+
+  if (next.x < 0 || next.x >= game.cols || next.y < 0 || next.y >= game.rows) {
+    game.status = "over";
+    return;
+  }
+
+  const eating = game.food && next.x === game.food.x && next.y === game.food.y;
+
+  // The tail cell vacates this tick unless we grow, so it is legal to move into.
+  const body = eating ? game.snake : game.snake.slice(0, -1);
+  if (body.some((seg) => seg.x === next.x && seg.y === next.y)) {
+    game.status = "over";
+    return;
+  }
+
+  game.snake.unshift(next);
+  if (eating) {
+    game.score += 1;
+    game.food = spawnFood(game);
+    if (!game.food) {
+      game.status = "won";
+    } else if (canRotate(game) && game.score % SPIN_EVERY === 0) {
+      spinBoard(game);
+    }
+  } else {
+    game.snake.pop();
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Rendering
+ * ------------------------------------------------------------------ */
+
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const bestEl = document.getElementById("best");
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayBody = document.getElementById("overlayBody");
+
+let cell = 500 / COLS;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const size = canvas.clientWidth || 500;
+  canvas.width = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cell = size / game.cols;
+}
+
+function draw() {
+  const size = canvas.clientWidth || 500;
+  ctx.clearRect(0, 0, size, size);
+
+  // board grid
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < game.cols; i++) {
+    ctx.moveTo(Math.round(i * cell) + 0.5, 0);
+    ctx.lineTo(Math.round(i * cell) + 0.5, size);
+  }
+  for (let j = 1; j < game.rows; j++) {
+    ctx.moveTo(0, Math.round(j * cell) + 0.5);
+    ctx.lineTo(size, Math.round(j * cell) + 0.5);
+  }
+  ctx.stroke();
+
+  // food
+  if (game.food) {
+    const fx = (game.food.x + 0.5) * cell;
+    const fy = (game.food.y + 0.5) * cell;
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--food").trim() || "#ff6b6b";
+    ctx.beginPath();
+    ctx.arc(fx, fy, cell * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // snake — tail first so the head sits on top
+  for (let i = game.snake.length - 1; i >= 0; i--) {
+    const seg = game.snake[i];
+    const t = game.snake.length === 1 ? 1 : 1 - i / (game.snake.length - 1);
+    const pad = cell * (0.06 + 0.10 * (1 - t));
+    ctx.fillStyle = i === 0
+      ? "#5ef3a5"
+      : `rgba(63, 214, 140, ${(0.42 + 0.5 * t).toFixed(3)})`;
+    roundRect(seg.x * cell + pad, seg.y * cell + pad, cell - pad * 2, cell - pad * 2, cell * 0.28);
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, radius);
+  } else {                                  // Safari < 16
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+  }
+  ctx.fill();
+}
+
+/* ------------------------------------------------------------------ *
+ * Screen state
+ * ------------------------------------------------------------------ */
+
+let best = 0;
+try { best = Number(localStorage.getItem("snake.best")) || 0; } catch { /* private mode */ }
+
+function saveBest() {
+  if (game.score <= best) return;
+  best = game.score;
+  try { localStorage.setItem("snake.best", String(best)); } catch { /* private mode */ }
+}
+
+function showOverlay(title, body) {
+  overlayTitle.textContent = title;
+  overlayBody.innerHTML = body;
+  overlay.classList.add("show");
+}
+
+function hideOverlay() {
+  overlay.classList.remove("show");
+}
+
+function syncHud() {
+  scoreEl.textContent = String(game.score);
+  bestEl.textContent = String(best);
+}
+
+function reset() {
+  game = createGame({ seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0 });
+  syncHud();
+  showOverlay("Snake", "Press any arrow key or <span class=\"key\">Space</span> to start");
+  draw();
+}
+
+/* ------------------------------------------------------------------ *
+ * Input
+ * ------------------------------------------------------------------ */
+
+function startOrResume() {
+  if (game.status === "over" || game.status === "won") { reset(); return; }
+  game.status = "running";
+  hideOverlay();
+}
+
+function handleTurn(name) {
+  if (game.status === "ready") startOrResume();
+  if (game.status !== "running") return;
+  enqueueTurn(game, name);
+}
+
+function togglePause() {
+  if (game.status === "running") {
+    game.status = "paused";
+    showOverlay("Paused", "Press <span class=\"key\">Space</span> to resume");
+  } else if (game.status === "paused") {
+    startOrResume();
+  } else if (game.status === "ready") {
+    startOrResume();
+  }
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.repeat) return;
+  const dir = KEY_DIRS[event.code];
+  if (dir) {
+    event.preventDefault();
+    handleTurn(dir);
+    return;
+  }
+  if (event.code === "Space") { event.preventDefault(); togglePause(); return; }
+  if (event.code === "KeyR") { event.preventDefault(); reset(); }
+});
+
+// Swipe input for touch devices.
+let touchStart = null;
+canvas.addEventListener("touchstart", (event) => {
+  touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+}, { passive: true });
+
+canvas.addEventListener("touchend", (event) => {
+  if (!touchStart) return;
+  const dx = event.changedTouches[0].clientX - touchStart.x;
+  const dy = event.changedTouches[0].clientY - touchStart.y;
+  touchStart = null;
+  if (Math.abs(dx) < 24 && Math.abs(dy) < 24) { togglePause(); return; }
+  handleTurn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+});
+
+function announceEnd() {
+  saveBest();
+  syncHud();
+  const reason = game.status === "won" ? "Board full — you win." : `Score ${game.score}.`;
+  showOverlay(game.status === "won" ? "You win" : "Game over",
+    `${reason} Press <span class=\"key\">R</span> or <span class=\"key\">Space</span> to play again`);
+}
+
+/* ------------------------------------------------------------------ *
+ * Main loop
+ * ------------------------------------------------------------------ */
+
+let game = createGame({ seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0 });
+let last = performance.now();
+let acc = 0;
+let frames = 0;
+let lastStatus = "ready";   // for edge-triggering the end screen
+
+function frame(now) {
+  frames++;
+  const dt = Math.min(now - last, 250);   // clamp after tab-switch stalls
+  last = now;
+
+  if (game.status === "running") {
+    acc += dt;
+    while (acc >= TICK_MS && game.status === "running") {
+      acc -= TICK_MS;
+      step(game);
+      game.elapsed += 1;
+    }
+    syncHud();
+    draw();
+  } else {
+    acc = 0;
+  }
+
+  // Compared against the previous frame's status rather than checked inside
+  // the running branch: the game can end between frames, and the end screen
+  // would never appear for that route.
+  if (game.status !== lastStatus && (game.status === "over" || game.status === "won")) {
+    announceEnd();
+  }
+  lastStatus = game.status;
+
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener("resize", () => { resize(); draw(); });
+
+resize();
+syncHud();
+draw();
+requestAnimationFrame(frame);
+
+/* ------------------------------------------------------------------ *
+ * Self-test — the logic above is plain data in / data out, so it can be
+ * driven headlessly with `?selftest=1`. See RUNS.md for how it is run.
+ * ------------------------------------------------------------------ */
+
+function selftest() {
+  const results = [];
+  const check = (name, fn) => {
+    try {
+      const detail = fn();
+      results.push({ name, ok: true, detail: detail || "" });
+    } catch (err) {
+      results.push({ name, ok: false, detail: String((err && err.message) || err) });
+    }
+  };
+  const eq = (a, b, what) => {
+    if (a !== b) throw new Error(`${what}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+  };
+
+  check("starts 4 long, heading right, food placed", () => {
+    const g = createGame({ seed: 7 });
+    eq(g.snake.length, 4, "length");
+    eq(g.dir, "right", "dir");
+    if (!g.food) throw new Error("no food");
+    return `head=${key(g.snake[0])} food=${key(g.food)}`;
+  });
+
+  check("moves forward, length unchanged", () => {
+    const g = createGame({ seed: 7, food: { x: 0, y: 0 } });
+    const head = { ...g.snake[0] };
+    g.status = "running";
+    step(g);
+    eq(g.snake[0].x, head.x + 1, "x");
+    eq(g.snake[0].y, head.y, "y");
+    eq(g.snake.length, 4, "length");
+    eq(g.score, 0, "score");
+  });
+
+  check("eating food grows by 1 and scores", () => {
+    const g = createGame({ seed: 7, food: { x: 12, y: 10 } });
+    g.status = "running";
+    step(g);
+    eq(g.score, 1, "score");
+    eq(g.snake.length, 5, "length");
+    if (!g.food) throw new Error("food not respawned");
+    if (g.snake.some((s) => key(s) === key(g.food))) throw new Error("food spawned on the snake");
+    return `food=${key(g.food)}`;
+  });
+
+  check("turns, and ignores a direct reversal", () => {
+    const g = createGame({ seed: 7, food: { x: 0, y: 0 } });
+    g.status = "running";
+    enqueueTurn(g, "left");     // straight reversal — must be dropped
+    step(g);
+    eq(g.dir, "right", "dir after reversal attempt");
+    enqueueTurn(g, "up");
+    step(g);
+    eq(g.dir, "up", "dir after legal turn");
+    eq(g.snake[0].y, g.snake[1].y - 1, "head moved up");
+  });
+
+  check("two quick turns in one tick do not fold the snake", () => {
+    const g = createGame({ seed: 7, food: { x: 0, y: 0 } });
+    g.status = "running";
+    enqueueTurn(g, "up");
+    enqueueTurn(g, "left");     // reversal of the queued turn
+    step(g);
+    eq(g.dir, "up", "dir");
+    eq(g.status, "running", "status");
+  });
+
+  check("hits the wall", () => {
+    const g = createGame({
+      seed: 7,
+      food: { x: 0, y: 5 },
+      snake: [{ x: 20, y: 10 }, { x: 19, y: 10 }, { x: 18, y: 10 }],
+    });
+    g.status = "running";
+    step(g);
+    eq(g.status, "over", "status");
+  });
+
+  check("bites itself", () => {
+    const spiral = [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 4 }, { x: 5, y: 4 }, { x: 6, y: 4 }];
+    const g = createGame({ seed: 7, food: { x: 0, y: 0 }, snake: spiral, dir: "up" });
+    g.status = "running";
+    step(g);
+    eq(g.status, "over", "status");
+  });
+
+  check("may move into the vacating tail", () => {
+    const loop = [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 6 }, { x: 5, y: 6 }];
+    const g = createGame({ seed: 7, food: { x: 0, y: 0 }, snake: loop, dir: "down" });
+    g.status = "running";
+    step(g);
+    eq(g.status, "running", "status");
+    eq(g.snake[0].y, 6, "head y");
+  });
+
+  // FNV-1a over the move trace, so a replay comparison is one cheap string.
+  const hashTrace = (text) => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  };
+
+  /* Steering for the invariant games: chase the food, but prefer a move
+     that keeps a wall-free lane in front of the head. Pure greed dies far
+     too reliably once the board spins to be a useful test of anything. */
+  const drive = (g) => {
+    const head = g.snake[0];
+    const body = g.snake.slice(0, -1);
+    const inBoard = (x, y) => x >= 0 && x < g.cols && y >= 0 && y < g.rows;
+    const legal = ["up", "down", "left", "right"].filter((name) => {
+      const d = DIRS[name];
+      if (d.x === -DIRS[g.dir].x && d.y === -DIRS[g.dir].y) return false;
+      const nx = head.x + d.x;
+      const ny = head.y + d.y;
+      if (!inBoard(nx, ny)) return false;
+      return !body.some((s) => s.x === nx && s.y === ny);
+    });
+    if (!legal.length) return;
+
+    const fx = g.food ? g.food.x : head.x;
+    const fy = g.food ? g.food.y : head.y;
+    // Room behind the candidate cell: a corner with no exit is where the
+    // spin will eventually kill us, so weight it down.
+    const openness = (name) => {
+      const d = DIRS[name];
+      const nx = head.x + d.x;
+      const ny = head.y + d.y;
+      return ["up", "down", "left", "right"].filter((n2) => {
+        const e = DIRS[n2];
+        return inBoard(nx + e.x, ny + e.y) && !body.some((s) => s.x === nx + e.x && s.y === ny + e.y);
+      }).length;
+    };
+    const cost = (name) => {
+      const d = DIRS[name];
+      const dist = Math.abs(head.x + d.x - fx) + Math.abs(head.y + d.y - fy);
+      return dist - openness(name) * 1.5;
+    };
+    legal.sort((a, b) => cost(a) - cost(b));
+    enqueueTurn(g, legal[0]);
+  };
+
+  // Drives a whole game, so the invariant checks below cover a long,
+  // food-eating run rather than 10 idle ticks.
+  const playBot = (seed, limit = 4000) => {
+    const g = createGame({ seed });
+    g.status = "running";
+    const trace = [];
+    let duplicates = 0;
+    let foodOnSnake = 0;
+    let offBoard = 0;
+    let spinDeaths = 0;
+
+    for (let i = 0; i < limit && g.status === "running"; i++) {
+      const before = { spins: g.spins, head: key(g.snake[0]), len: g.snake.length };
+      drive(g);
+      step(g);
+
+      const cells = g.snake.map(key);
+      if (new Set(cells).size !== cells.length) duplicates++;
+      if (g.snake.some((s) => s.x < 0 || s.x >= g.cols || s.y < 0 || s.y >= g.rows)) offBoard++;
+      if (g.food && cells.includes(key(g.food))) foodOnSnake++;
+      // A spin that ends the game with the body still intact, on a board
+      // with room to spare, would be the rotation killing the player.
+      if (g.status === "over" && g.spins !== before.spins
+          && g.snake.length < g.cols * g.rows / 2 && cells.length === g.snake.length) {
+        spinDeaths++;
+      }
+      trace.push(`${g.dir}:${key(g.snake[0])}:${g.score}:${g.spins}`);
+    }
+
+    return {
+      g,
+      bad: { duplicates, foodOnSnake, offBoard },
+      hash: `${g.score}|${g.status}|${g.snake.length}|${trace.length}|${hashTrace(trace.join(" "))}`,
+    };
+  };
+
+  check("bot game: no duplicates, no off-board, food never inside the snake", () => {
+    const { g, bad } = playBot(42);
+    eq(bad.duplicates, 0, "duplicate cells");
+    eq(bad.offBoard, 0, "off-board cells");
+    eq(bad.foodOnSnake, 0, "food inside the snake");
+    if (g.score < 5) throw new Error(`bot only scored ${g.score}, test too shallow`);
+    return `score ${g.score}, length ${g.snake.length}, ${g.status}`;
+  });
+
+  check("same seed + same bot = identical game", () => {
+    const a = playBot(42).hash;
+    const b = playBot(42).hash;
+    const c = playBot(43).hash;
+    eq(a, b, "replay of seed 42");
+    if (a === c) throw new Error("different seeds produced identical games");
+    return a.slice(0, 40) + "…";
+  });
+
+  check("spin carries the world but not the heading", () => {
+    const n = 21;
+    const g = createGame({ seed: 5, food: { x: 20, y: 10 },
+      snake: [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }], dir: "right" });
+    const before = g.snake.map(key).join(" ");
+    spinBoard(g);
+    eq(g.dir, "right", "heading unchanged by the spin");
+    eq(g.spins, 1, "spins");
+    eq(key(g.food), key(rotatePoint({ x: 20, y: 0 }, n, 1)), "food carried round");
+    if (g.snake.map(key).join(" ") === before) throw new Error("snake did not move");
+    if (g.grace !== SPIN_GRACE_MS) throw new Error(`grace ${g.grace}, expected ${SPIN_GRACE_MS}`);
+    return `head ${before.split(" ")[0]} -> ${key(g.snake[0])}`;
+  });
+
+  check("rotatePoint is the bijection the no-death guarantee rests on", () => {
+    const n = 21;
+    const cells = [];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) cells.push({ x, y });
+    for (const times of [1, -1, 2, 3]) {
+      const out = cells.map((p) => key(rotatePoint(p, n, times)));
+      const uniq = new Set(out);
+      if (uniq.size !== n * n) throw new Error(`times=${times}: ${uniq.size} distinct of ${n * n}`);
+      const offBoard = out.filter((c) => {
+        const [x, y] = c.split(",").map(Number);
+        return x < 0 || x >= n || y < 0 || y >= n;
+      });
+      if (offBoard.length) throw new Error(`times=${times}: ${offBoard.length} cells left the board`);
+    }
+    // Four quarter turns must land you back where you started.
+    const round = cells.every((p) => key(rotatePoint(rotatePoint(rotatePoint(
+      rotatePoint(p, n, 1), n, 1), n, 1), n, 1)) === key(p));
+    if (!round) throw new Error("four quarter turns did not return to identity");
+    return `${n * n} cells, 4 rotations, all bijective`;
+  });
+
+  check("a spin never kills you on the spot", () => {
+    // A tightly coiled snake: the worst case for a rotation.
+    const snake = [];
+    for (let y = 0; y < 6; y++) {
+      for (let i = 0; i < 6; i++) {
+        snake.push({ x: y % 2 === 0 ? i : 5 - i, y });
+      }
+    }
+    const g = createGame({ seed: 9, snake, dir: "right", food: { x: 20, y: 20 } });
+    for (let i = 0; i < 8; i++) {
+      spinBoard(g);
+      const cells = g.snake.map(key);
+      if (new Set(cells).size !== cells.length) throw new Error(`spin ${i}: body overlapped itself`);
+      if (cells.some((c) => {
+        const [x, y] = c.split(",").map(Number);
+        return x < 0 || x >= g.cols || y < 0 || y >= g.rows;
+      })) throw new Error(`spin ${i}: off the board`);
+      if (g.food && cells.includes(key(g.food))) throw new Error(`spin ${i}: food inside the body`);
+    }
+    return "coiled snake survived 8 spins, body intact";
+  });
+
+  check("spin alternates direction", () => {
+    const g = createGame({ seed: 2, snake: [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }] });
+    const seen = [];
+    for (let i = 0; i < 4; i++) seen.push(spinBoard(g));
+    eq(seen.join(","), "1,-1,1,-1", "spin directions");
+    eq(g.spins, 0, "net rotation after four quarter turns");
+    return seen.join(" ");
+  });
+
+  check("spins every SPIN_EVERY pellets and pauses first", () => {
+    const g = createGame({ seed: 11 });
+    const scoresAtSpin = [];
+    g.status = "running";
+    let frozen = 0;
+    for (let i = 0; i < 600 && g.status === "running"; i++) {
+      const beforeSpins = g.spins;
+      const head = key(g.snake[0]);
+      drive(g);
+      step(g);
+      if (g.spins !== beforeSpins) scoresAtSpin.push(g.score);
+      else if (g.grace > 0 && key(g.snake[0]) === head) frozen++;
+    }
+    if (!scoresAtSpin.length) throw new Error("no spins happened in 600 ticks");
+    const wrong = scoresAtSpin.filter((s) => s % SPIN_EVERY !== 0);
+    if (wrong.length) throw new Error(`spun at scores ${wrong.join(",")}, not multiples of ${SPIN_EVERY}`);
+    if (frozen === 0) throw new Error("grace pause never froze the snake");
+    return `spun at scores ${scoresAtSpin.join(",")}; ${frozen} frozen ticks`;
+  });
+
+  check("fills the board and reports a win, not a crash", () => {
+    // 3x2 board, snake already occupies 5 of the 6 cells; the food is the last.
+    const snake = [{ x: 2, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }];
+    const g = createGame({ seed: 3, cols: 3, rows: 2, snake, dir: "down", food: { x: 2, y: 1 } });
+    g.status = "running";
+    step(g);
+    eq(g.status, "won", "status");
+    eq(g.snake.length, 6, "length");
+    eq(g.food, null, "food");
+  });
+
+  return results;
+}
+
+// `peek()` rather than the value itself: `game` is rebound on every restart.
+window.__SNAKE__ = {
+  peek: () => game,
+  createGame, step, enqueueTurn, spawnFood, selftest, key, DIRS,
+  get frames() { return frames; },
+};
+
+if (new URLSearchParams(location.search).get("selftest") === "1") {
+  const results = selftest();
+  const failed = results.filter((r) => !r.ok);
+  window.__SELFTEST__ = { results, passed: results.length - failed.length, total: results.length };
+  const pre = document.createElement("pre");
+  pre.id = "selftest";
+  pre.style.cssText = "position:fixed;left:0;right:0;bottom:0;margin:0;padding:8px;" +
+    "background:#0a0e14;font:12px/1.5 ui-monospace,monospace;max-height:45vh;overflow:auto";
+  pre.textContent = results.map((r) => `${r.ok ? "ok  " : "FAIL"} ${r.name}${r.detail ? "  — " + r.detail : ""}`).join("\n");
+  document.body.appendChild(pre);
+}
+
+/* ------------------------------------------------------------------ *
+ * Smoke test — `?smoke=1` drives the real rAF loop with real keyboard
+ * events, exercising the parts the pure tests above cannot reach:
+ * input handling, the timer, the HUD, and the canvas draw path.
+ * ------------------------------------------------------------------ */
+
+if (new URLSearchParams(location.search).get("smoke") === "1") {
+  const press = (code) => document.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+  const log = [];
+  const note = (line) => log.push(line);
+
+  const before = { head: key(game.snake[0]), status: game.status };
+  press("ArrowUp");                                  // should start the game
+  const started = game.status === "running";
+  note(`${started ? "ok  " : "FAIL"} keydown starts the game  — status=${game.status}`);
+
+  setTimeout(() => {
+    const moved = key(game.snake[0]) !== before.head;
+    const inBounds = game.snake.every((s) => s.x >= 0 && s.x < game.cols && s.y >= 0 && s.y < game.rows);
+    note(`${moved ? "ok  " : "FAIL"} the loop moved the snake  — ${before.head} -> ${key(game.snake[0])}`);
+    note(`${inBounds ? "ok  " : "FAIL"} stayed on the board`);
+    note(`${/^[0-9]+$/.test(scoreEl.textContent) ? "ok  " : "FAIL"} HUD score is a number  — "${scoreEl.textContent}"`);
+
+    press("Space");
+    note(`${game.status === "paused" ? "ok  " : "FAIL"} space pauses  — status=${game.status}`);
+    note(`${overlay.classList.contains("show") ? "ok  " : "FAIL"} overlay visible while paused`);
+
+    // Canvas must have real pixels painted, i.e. draw() actually ran.
+    const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let lit = 0;
+    for (let i = 3; i < px.length; i += 4 * 97) if (px[i] > 0) lit++;
+    note(`${lit > 200 ? "ok  " : "FAIL"} canvas was painted  — ${lit} sampled opaque pixels of ${Math.floor(px.length / (4 * 97))}`);
+
+    press("Space");
+    press("KeyR");
+    note(`${game.status === "ready" && game.score === 0 ? "ok  " : "FAIL"} R restarts  — status=${game.status} score=${game.score}`);
+
+    const failed = log.filter((l) => l.startsWith("FAIL")).length;
+    window.__SMOKE__ = { log, passed: log.length - failed, total: log.length };
+    const pre = document.createElement("pre");
+    pre.id = "smoke";
+    pre.style.cssText = "position:fixed;left:0;right:0;bottom:0;margin:0;padding:8px;background:#0a0e14;font:12px/1.5 ui-monospace,monospace";
+    pre.textContent = log.join("\n");
+    document.body.appendChild(pre);
+  }, 700);
+}
+
+</script>
+</body>
+</html>
