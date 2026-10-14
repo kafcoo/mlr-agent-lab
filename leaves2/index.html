@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍃 Klasifikace druhů listů — ML Lab & Prezentace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(51, 65, 85, 0.85);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #10b981;
+      --primary-glow: rgba(16, 185, 129, 0.25);
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --purple: #a855f7;
+      --gold: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(168, 85, 247, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1080px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      letter-spacing: 0.02em;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .author-meta {
+      font-size: 0.9rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    /* KPI Stats Ribbon */
+    .stats-ribbon {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      padding: 1.25rem;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .stat-value.green { color: #34d399; }
+    .stat-value.cyan { color: #38bdf8; }
+    .stat-value.amber { color: #fbbf24; }
+    .stat-value.purple { color: #c084fc; }
+
+    .stat-sub {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.2rem;
+    }
+
+    /* Deliverables Grid */
+    .deliverables {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.75rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .item-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      padding: 2.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .item-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, transparent);
+      transition: background 0.25s;
+    }
+
+    .item-card.slides:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px -10px var(--accent-glow);
+    }
+    .item-card.slides::before {
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+    }
+
+    .item-card.report:hover {
+      border-color: rgba(16, 185, 129, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px -10px var(--primary-glow);
+    }
+    .item-card.report::before {
+      background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .item-header {
+      margin-bottom: 1.25rem;
+    }
+
+    .icon-wrapper {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .icon-wrapper.blue {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .icon-wrapper.green {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .item-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .item-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.9rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: #10b981;
+      color: #042f2e;
+    }
+
+    .btn-primary:hover {
+      background: #34d399;
+      transform: translateY(-1px);
+    }
+
+    .btn-accent {
+      background: #38bdf8;
+      color: #082f49;
+    }
+
+    .btn-accent:hover {
+      background: #7dd3fc;
+      transform: translateY(-1px);
+    }
+
+    /* Pipeline summary */
+    .pipeline-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .pipeline-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: #fff;
+    }
+
+    .pipeline-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .step-box {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.15rem;
+    }
+
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 0.35rem;
+    }
+
+    .step-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-desc {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.45;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #64748b;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    footer a {
+      color: #94a3b8;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    footer a:hover {
+      color: #38bdf8;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 1.5rem 1rem; }
+      .deliverables { grid-template-columns: 1fr; }
+      .stats-ribbon { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">
+        <span>🍃</span>
+        <span>Machine Learning Lab · Botanický dataset</span>
+      </div>
+      <h1>Klasifikace druhů listů</h1>
+      <p class="subtitle">
+        Empirické hodnocení klasifikátorů strojového učení, hyperparametrické ladění 4 rodin modelů a chybová analýza na botanickém datasetu <code>leaves.csv</code>.
+      </p>
+      <div class="author-meta">
+        <span>👤 Autor: <strong>Tomáš Kaválek</strong></span>
+        <span>📅 Datum: <strong>Říjen 2026</strong></span>
+        <span>🏷️ Úloha: <strong>Multiclass Classification</strong></span>
+      </div>
+    </header>
+
+    <!-- Key Metrics Ribbon -->
+    <div class="stats-ribbon">
+      <div class="stat-card">
+        <div class="stat-label">Vítězný model</div>
+        <div class="stat-value green">k-NN</div>
+        <div class="stat-sub">k = 7 (distance weights)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Holdout Test Přesnost</div>
+        <div class="stat-value cyan">90.91 %</div>
+        <div class="stat-sub">+48.67 % vs Baseline</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Holdout Macro F1</div>
+        <div class="stat-value amber">0.8983</div>
+        <div class="stat-sub">Baseline: 0.1980</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Velikost datasetu</div>
+        <div class="stat-value purple">492</div>
+        <div class="stat-sub">393 trénink / 99 test (80/20)</div>
+      </div>
+    </div>
+
+    <!-- Main Deliverables Grid -->
+    <div class="deliverables">
+      <!-- Card 1: Reveal.js Slides -->
+      <div class="item-card slides">
+        <div>
+          <div class="item-header">
+            <div class="icon-wrapper blue">📽️</div>
+            <h2 class="item-title">Prezentace výsledků</h2>
+            <p class="item-desc">
+              Interaktivní prezentace navržená pro přehledné seznámení managementu i technického týmu s problematikou, porovnáním modelů a chybovou analýzou.
+            </p>
+          </div>
+          <div class="pill-list">
+            <span class="pill">5 lineárních slidů</span>
+            <span class="pill">Reveal.js</span>
+            <span class="pill">Responzivní CSS</span>
+            <span class="pill">Prezentační režim</span>
+          </div>
+        </div>
+        <a href="slides.html" class="btn btn-accent">
+          <span>Otevřít prezentaci</span>
+          <span>→</span>
+        </a>
+      </div>
+
+      <!-- Card 2: Technical Report -->
+      <div class="item-card report">
+        <div>
+          <div class="item-header">
+            <div class="icon-wrapper green">📑</div>
+            <h2 class="item-title">Vědecký report & simulace</h2>
+            <p class="item-desc">
+              Komplexní technická zpráva s interaktivní simulací učení (9 fází vývoje rozhodovacích hranic na canvasu), 5 KPI kartami, leaderboardem 53 konfigurací a pitvou chyb.
+            </p>
+          </div>
+          <div class="pill-list">
+            <span class="pill">Interaktivní Canvas</span>
+            <span class="pill">9 fází evoluce hranic</span>
+            <span class="pill">Leaderboard 4 rodin</span>
+            <span class="pill">Autopsie 9 chyb</span>
+          </div>
+        </div>
+        <a href="report.html" class="btn btn-primary">
+          <span>Zobrazit plný report</span>
+          <span>→</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Pipeline Architecture -->
+    <div class="pipeline-section">
+      <h3 class="pipeline-title">
+        <span>⚙️</span>
+        <span>Metodika & Architektura řešení</span>
+      </h3>
+      <div class="pipeline-steps">
+        <div class="step-box">
+          <div class="step-num">KROK 01</div>
+          <div class="step-name">Explorace dat</div>
+          <div class="step-desc">Odstranění 26 duplikátů (518 → 492 vzorků). Zachování 2 fyziologických extrémů třešně.</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">KROK 02</div>
+          <div class="step-name">Striktní SPEC.md</div>
+          <div class="step-desc">Stratifikovaný split 80/20, 5-fold CV, primární metrika Macro F1 proti class imbalance.</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">KROK 03</div>
+          <div class="step-name">Baseline srovnání</div>
+          <div class="step-desc">DummyClassifier dosahuje pouhých 42.24 % acc a 0.1980 Macro F1 (nulová schopnost separace).</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">KROK 04</div>
+          <div class="step-name">Tuning 4 modelů</div>
+          <div class="step-desc">Testováno 53 konfigurací (LogReg, k-NN, Decision Tree, Random Forest). k-NN dominoval s 0.9556 CV F1.</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">KROK 05</div>
+          <div class="step-name">Holdout evaluace</div>
+          <div class="step-desc">Jediná evaluace na 99 testovacích vzorcích: 90.91 % acc, 0.8983 Macro F1, identifikováno 9 chyb.</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div>Repozitář projektu: <a href="https://github.com/kafcoo/mlr-agent-lab" target="_blank" rel="noopener">github.com/kafcoo/mlr-agent-lab</a></div>
+      <div>Vytvořeno v rámci ML Agent Lab · Quarto + Reveal.js + Scikit-Learn</div>
+    </footer>
+  </div>
+</body>
+</html>
