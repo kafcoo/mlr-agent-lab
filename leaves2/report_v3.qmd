@@ -1,0 +1,404 @@
+---
+title: "📖 Morfologická separace listů — Vědecká studie & ML Report"
+subtitle: "Empirické hodnocení klasifikátorů na datech `leaves.csv` (Steps 1–7)"
+author: "Tomáš Kaválek"
+date: "2026-10-14"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    toc-title: "Kapitoly studie 📑"
+    theme: flatly
+    smooth-scroll: true
+execute:
+  echo: false
+  warning: false
+---
+
+```{=html}
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Georgia, serif;
+  color: #1e293b;
+  background-color: #fcfdfd;
+  line-height: 1.7;
+}
+
+.hero-editorial {
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 45%, #047857 100%);
+  color: white;
+  padding: 34px 40px;
+  border-radius: 16px;
+  margin-bottom: 26px;
+  box-shadow: 0 10px 25px -5px rgba(6, 78, 59, 0.3);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0 32px 0;
+}
+
+.kpi-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  border-top: 4px solid #059669;
+}
+
+.species-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 20px 0 28px 0;
+}
+
+.species-card {
+  background: white;
+  border-radius: 12px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+}
+
+.timeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+  background: white;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.step-num {
+  background: #047857;
+  color: white;
+  font-weight: 800;
+  font-size: 0.9rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.badge-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.table-editorial {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin: 16px 0;
+  border: 1px solid #e2e8f0;
+}
+
+.table-editorial th {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 700;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.table-editorial td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+</style>
+```
+
+::: {.hero-editorial}
+<h1 style="margin: 0 0 10px 0; font-size: 2.2rem; font-weight: 800; color: #ffffff;">📖 Morfologická separace druhů listů</h1>
+<p style="margin: 0; font-size: 1.1rem; color: #a7f3d0; max-width: 820px;">
+Vědecký report a rigorózní vyhodnocení klasifikátorů strojového učení (k-NN, Random Forest, Decision Tree, Logistic Regression) na botanickém datasetu `leaves.csv`.
+</p>
+:::
+
+```{python}
+import json
+import pandas as pd
+from IPython.display import display, HTML
+
+with open("results/baseline_results.json") as f:
+    baseline = json.load(f)
+with open("results/best_model_info.json") as f:
+    best_info = json.load(f)
+with open("results/test_metrics.json") as f:
+    test_res = json.load(f)
+
+raw_df = pd.read_csv("leaves.csv")
+raw_df.columns = ["height", "width", "type"]
+n_raw = len(raw_df)
+df_unique = raw_df.drop_duplicates()
+n_unique = len(df_unique)
+n_dups = n_raw - n_unique
+
+cv_df = pd.read_csv("results/cv_results.csv")
+
+test_acc = test_res["test_accuracy"] * 100
+base_acc = baseline["cv_mean_accuracy"] * 100
+acc_gain = test_acc - base_acc
+test_f1 = test_res["test_macro_f1"]
+base_f1 = baseline["cv_mean_macro_f1"]
+
+display(HTML(f"""
+<div class="kpi-grid">
+  <div class="kpi-card" style="border-top-color: #059669;">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">🎯 Out-of-sample Přesnost</div>
+    <div style="font-size: 1.85rem; font-weight: 800; color: #0f172a; line-height: 1.25;">{test_acc:.2f}%</div>
+    <div style="font-size: 0.82rem; color: #059669; font-weight: 700; margin-top: 4px;">+{acc_gain:.1f}% nad baseline</div>
+  </div>
+  <div class="kpi-card" style="border-top-color: #2563eb;">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">🏆 Test Macro F1</div>
+    <div style="font-size: 1.85rem; font-weight: 800; color: #0f172a; line-height: 1.25;">{test_f1:.4f}</div>
+    <div style="font-size: 0.82rem; color: #2563eb; font-weight: 700; margin-top: 4px;">Baseline: {base_f1:.3f}</div>
+  </div>
+  <div class="kpi-card" style="border-top-color: #7c3aed;">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">🥇 Vítězný Model</div>
+    <div style="font-size: 1.4rem; font-weight: 800; color: #0f172a; line-height: 1.25;">k-NN (k=7)</div>
+    <div style="font-size: 0.82rem; color: #7c3aed; font-weight: 700; margin-top: 4px;">weights='distance'</div>
+  </div>
+  <div class="kpi-card" style="border-top-color: #d97706;">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">🍃 Vzorků po filtraci</div>
+    <div style="font-size: 1.85rem; font-weight: 800; color: #0f172a; line-height: 1.25;">{n_unique}</div>
+    <div style="font-size: 0.82rem; color: #d97706; font-weight: 700; margin-top: 4px;">{n_dups} duplicit odstraněno</div>
+  </div>
+</div>
+"""))
+```
+
+---
+
+## 🌿 1. Morfologické profily druhů
+
+Botanická klasifikace zkoumá morfologické charakteristiky tří druhů dřevin:
+
+::: {.species-grid}
+::: {.species-card}
+### 🍁 Javor (*Acer*)
+- **Tvar listu:** Široce dlanitolaločný, čepel je u 81 % vzorků širší než delší.
+- **Rozměry:** Výška $4.1 \dots 25.5$ cm, šířka $3.5 \dots 29.7$ cm.
+- **Zvláštnost:** Bimodální rozdělení velikostí (mladé stromy $\le 18$ cm vs. plně vzrostlé listy $> 18$ cm).
+:::
+
+::: {.species-card}
+### 🍒 Třešeň (*Prunus*)
+- **Tvar listu:** Drobný, kompaktní, eliptický až vejčitý s jemně pilovitým okrajem.
+- **Rozměry:** Výška $3.8 \dots 16.9$ cm, šířka $2.5 \dots 7.5$ cm.
+- **Zvláštnost:** Velmi nízký rozptyl šířky; šířka nad 12 cm indikuje anomálii v označení.
+:::
+
+::: {.species-card}
+### 🌰 Ořešák (*Juglans*)
+- **Tvar listu:** Podlouhle kopinatý lístek lichozpeřeného listu.
+- **Rozměry:** Výška $10.3 \dots 21.5$ cm, šířka $4.2 \dots 15.6$ cm.
+- **Zvláštnost:** Vysoký poměr délky k šířce; v rozmezí výšky $11 \dots 14$ cm morfologicky sousedí s třešní.
+:::
+:::
+
+![Obrázek: Rozptyl rozměrů listů v botanickém souboru `leaves.csv`](height_vs_width.png){width=85%}
+
+---
+
+## 🔬 2. Výsledky ladění & Detailní rozbor (Interaktivní taby)
+
+::: {.panel-tabset}
+### 📊 Tab 1: Srovnání modelových rodin (53 Trialů)
+
+<table class="table-editorial">
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Optimální konfigurace</th>
+      <th>5-Fold CV Macro F1</th>
+      <th>5-Fold CV Accuracy</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background: #f0fdf4; font-weight: 700;">
+      <td><strong>🏆 K-Nearest Neighbors</strong></td>
+      <td><code>StandardScaler + k=7, weights='distance'</code></td>
+      <td><strong>0.9556 &plusmn; 0.016</strong></td>
+      <td><strong>95.67%</strong></td>
+      <td><span class="badge-tag" style="background:#dcfce7; color:#15803d;">Vítěz</span></td>
+    </tr>
+    <tr>
+      <td><strong>🌲 Random Forest</strong></td>
+      <td><code>n_estimators=50, max_depth=8, min_split=5</code></td>
+      <td>0.9389 &plusmn; 0.019</td>
+      <td>94.15%</td>
+      <td><span class="badge-tag" style="background:#e0e7ff; color:#3730a3;">2. místo</span></td>
+    </tr>
+    <tr>
+      <td><strong>🌳 Decision Tree</strong></td>
+      <td><code>max_depth=5, min_samples_split=10</code></td>
+      <td>0.9322 &plusmn; 0.016</td>
+      <td>93.64%</td>
+      <td><span class="badge-tag" style="background:#fef3c7; color:#92400e;">3. místo</span></td>
+    </tr>
+    <tr>
+      <td><strong>📐 Logistic Regression</strong></td>
+      <td><code>StandardScaler + C=1.0, max_iter=1000</code></td>
+      <td>0.9280 &plusmn; 0.021</td>
+      <td>93.13%</td>
+      <td><span class="badge-tag" style="background:#f1f5f9; color:#475569;">4. místo</span></td>
+    </tr>
+    <tr style="background: #fef2f2; color: #991b1b;">
+      <td><strong>⚠️ Naivní Baseline</strong></td>
+      <td><code>DummyClassifier(strategy='most_frequent')</code></td>
+      <td>0.1980 &plusmn; 0.002</td>
+      <td>42.24%</td>
+      <td><span>Baseline</span></td>
+    </tr>
+  </tbody>
+</table>
+
+### 🗺️ Tab 2: Hranice rozhodování v prostoru listů
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+  <div>
+    <img src="results/decision_boundaries.png" style="width: 100%; border-radius: 10px; border: 1px solid #cbd5e1;" alt="Rozhodovací hranice" />
+  </div>
+  <div>
+    <h4>Proč k-NN překonává ostatní modely?</h4>
+    <p>
+      1. <strong>Bimodální javor:</strong> Javor obsahuje dvě velikostní skupiny. K-NN s vážením vzdáleností přirozeně vytváří dvě spojené oblasti bez nutnosti složité parametrizace.
+    </p>
+    <p>
+      2. <strong>Zakřivená separace:</strong> Hranice mezi ořešákem a třešní je nelineární. Logistická regrese jako lineární model zde ztrácí cca 2.7 % přesnosti.
+    </p>
+  </div>
+</div>
+
+### 🔍 Tab 3: Pitevní analýza 9 chyb testovací sady (Error Autopsy)
+
+Ze 99 testovacích vzorků model správně klasifikoval 90 (přesnost **90.91 %**). Následující tabulka vysvětluje všech 9 chyb:
+
+<table class="table-editorial">
+  <thead>
+    <tr>
+      <th>Výška (cm)</th>
+      <th>Šířka (cm)</th>
+      <th>Skutečný druh</th>
+      <th>Predikce k-NN</th>
+      <th>Příčina záměny</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background: #fef2f2;">
+      <td><strong>14.56</strong></td>
+      <td><strong>17.08</strong></td>
+      <td>🍒 Třešeň</td>
+      <td>🍁 Javor</td>
+      <td><strong>Label Noise / Anomálie:</strong> Obří list, morfologicky čistý javor označený jako třešeň.</td>
+    </tr>
+    <tr>
+      <td>16.00</td>
+      <td>7.00</td>
+      <td>🍒 Třešeň</td>
+      <td>🌰 Ořešák</td>
+      <td>Hraniční případ na styku třešně a mladého ořešáku.</td>
+    </tr>
+    <tr>
+      <td>15.50</td>
+      <td>7.50</td>
+      <td>🍒 Třešeň</td>
+      <td>🌰 Ořešák</td>
+      <td>Hraniční případ na styku třešně a mladého ořešáku.</td>
+    </tr>
+    <tr>
+      <td>17.50</td>
+      <td>11.50</td>
+      <td>🍁 Javor</td>
+      <td>🌰 Ořešák</td>
+      <td>Mírně užší list javoru zasahující do oblasti ořešáku.</td>
+    </tr>
+    <tr>
+      <td>12.95</td>
+      <td>8.24</td>
+      <td>🍁 Javor</td>
+      <td>🌰 Ořešák</td>
+      <td>Hraniční vzorek mezi javorem a ořešákem.</td>
+    </tr>
+    <tr>
+      <td>10.30</td>
+      <td>5.80</td>
+      <td>🌰 Ořešák</td>
+      <td>🍒 Třešeň</td>
+      <td>Drobný lístek ořešáku morfologicky shodný s velkou třešní.</td>
+    </tr>
+    <tr>
+      <td>11.22</td>
+      <td>5.19</td>
+      <td>🌰 Ořešák</td>
+      <td>🍒 Třešeň</td>
+      <td>Drobný lístek ořešáku morfologicky shodný s velkou třešní.</td>
+    </tr>
+    <tr>
+      <td>11.00</td>
+      <td>5.00</td>
+      <td>🌰 Ořešák</td>
+      <td>🍒 Třešeň</td>
+      <td>Drobný lístek ořešáku morfologicky shodný s velkou třešní.</td>
+    </tr>
+    <tr>
+      <td>13.50</td>
+      <td>9.00</td>
+      <td>🌰 Ořešák</td>
+      <td>🍁 Javor</td>
+      <td>Netypicky široký ořešák zasahující do javorové oblasti.</td>
+    </tr>
+  </tbody>
+</table>
+:::
+
+---
+
+## 📌 3. Ověření kritérií specifikace (Done When)
+
+::: {.timeline-step}
+<div class="step-num">✓</div>
+<div>
+  <strong>1. Odstranění data leakage:</strong> 26 přesných duplikátů odebráno před train/test rozdělením; ověřeno assertem nulového průniku.
+</div>
+:::
+
+::: {.timeline-step}
+<div class="step-num">✓</div>
+<div>
+  <strong>2. Překonání naivní baseline:</strong> Dosažen zisk <strong>+48.67 procentních bodů</strong> (požadováno $\ge 40$ p.b.).
+</div>
+:::
+
+::: {.timeline-step}
+<div class="step-num">✓</div>
+<div>
+  <strong>3. Jednorázový out-of-sample test:</strong> Testovací sada 99 vzorků byla vyhodnocena striktně jednou na vítězném modelu.
+</div>
+:::
+
+::: {.timeline-step}
+<div class="step-num">✓</div>
+<div>
+  <strong>4. Plná reprodukovatelnost:</strong> Jediný příkaz <code>uv run python leaves2/train.py</code> zreprodukuje všechny výsledky.
+</div>
+:::
