@@ -10,167 +10,127 @@ format:
     slide-number: true
     width: 1280
     height: 720
-    margin: 0.06
-    smaller: true
+    margin: 0.05
+    navigation-mode: linear
+    slide-level: 2
+    controls: true
+    css: slides.css
 execute:
   echo: false
   warning: false
 ---
 
-```{=html}
-<style>
-.reveal h2 {
-  font-size: 1.55em;
-  margin-bottom: 0.35em;
-  color: #1e293b;
-  font-weight: 700;
-}
-.reveal p, .reveal li {
-  font-size: 0.88em;
-  line-height: 1.35;
-  color: #334155;
-}
-.card {
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-}
-.card-primary {
-  background: #f0fdf4;
-  border-left: 5px solid #22c55e;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-}
-.card-warn {
-  background: #fffbeb;
-  border-left: 5px solid #f59e0b;
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-}
-.stat-val {
-  font-size: 1.4em;
-  font-weight: 700;
-  color: #0f172a;
-}
-.stat-sub {
-  font-size: 0.75em;
-  color: #64748b;
-}
-.img-contain {
-  max-height: 420px;
-  max-width: 100%;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-}
-.table-compact {
-  width: 100%;
-  font-size: 0.82em;
-  border-collapse: collapse;
-  margin-top: 4px;
-}
-.table-compact th {
-  background: #f1f5f9;
-  padding: 6px 10px;
-  text-align: left;
-  border-bottom: 2px solid #cbd5e1;
-}
-.table-compact td {
-  padding: 6px 10px;
-  border-bottom: 1px solid #e2e8f0;
-}
-</style>
+```{python}
+#| include: false
+import json
+import pandas as pd
+
+# Load dataset and counts
+df_raw = pd.read_csv("leaves.csv")
+n_raw = len(df_raw)
+df_unique = df_raw.drop_duplicates()
+n_unique = len(df_unique)
+n_dups = n_raw - n_unique
+dup_pct = f"{n_dups / n_raw * 100:.1f}%"
+counts = df_unique.iloc[:, 2].value_counts().to_dict()
+count_maple = counts.get("maple", 0)
+count_cherry = counts.get("cherry", 0)
+count_walnut = counts.get("walnut", 0)
+
+# Load baseline metrics
+with open("results/baseline_results.json") as f:
+    baseline = json.load(f)
+base_acc = baseline["cv_mean_accuracy"] * 100
+base_acc_str = f"{base_acc:.1f}%"
+base_f1 = baseline["cv_mean_macro_f1"]
+base_f1_str = f"{base_f1:.3f}"
+
+# Load best model info
+with open("results/best_model_info.json") as f:
+    best_info = json.load(f)
+best_family = best_info["best_model_family"]
+best_params_str = f"clf__n_neighbors={best_info['best_params']['clf__n_neighbors']}, weights='{best_info['best_params']['clf__weights']}'"
+
+# Load final test metrics
+with open("results/test_metrics.json") as f:
+    test_res = json.load(f)
+test_acc = test_res["test_accuracy"] * 100
+test_acc_str = f"{test_acc:.2f}%"
+test_f1 = test_res["test_macro_f1"]
+test_f1_str = f"{test_f1:.4f}"
+acc_gain = test_acc - base_acc
+acc_gain_str = f"+{acc_gain:.1f}%"
+cm = test_res["confusion_matrix"]
 ```
 
 ## Slide 1: Goal & Research Question
 
-:::: {.columns}
-::: {.column width="50%"}
+::: {.slide-container}
+::: {.col-half}
 ::: {.card}
-### 🎯 Research Question
+<div class="card-title">🎯 Research Question</div>
+
 **Can physical leaf dimensions reliably classify tree species?**
 
 - **Input Features**: Only two scalar measurements:
   - `Leaf height` (cm)
   - `Leaf width` (cm)
 - **Target Species**:
-  - **Maple** (*Acer*) — broad, palmate
-  - **Cherry** (*Prunus*) — small, oval
+  - **Maple** (*Acer*) — broad, palmate, bimodal size
+  - **Cherry** (*Prunus*) — small, compact, oval
   - **Walnut** (*Juglans*) — elongated, compound
 :::
 :::
-::: {.column width="50%"}
+
+::: {.col-half}
 ::: {.card-primary}
-### 📋 Rigorous Evaluation Criteria
+<div class="card-title">📋 Rigorous Evaluation Criteria</div>
+
 - **Zero Data Leakage**: Isolate test holdout before any model fitting or tuning.
 - **Beat the Baseline**: Exceed naive majority-class guessing by at least 40 percentage points.
 - **Cross-Validation Tuning**: 5-fold Stratified CV optimizing Macro F1 (equal class weights).
 - **Single Test Evaluation**: Test set touched strictly once for final unbiased reporting.
 :::
 :::
-::::
-
----
+:::
 
 ## Slide 2: Data Exploration & Anomalies (Step 1)
 
-```{python}
-import pandas as pd
-import json
-
-df_raw = pd.read_csv("leaves.csv")
-total_raw = len(df_raw)
-df_unique = df_raw.drop_duplicates()
-n_unique = len(df_unique)
-n_dups = total_raw - n_unique
-counts = df_unique.iloc[:, 2].value_counts().to_dict()
-```
-
-:::: {.columns}
-::: {.column width="50%"}
-<img src="height_vs_width.png" class="img-contain" alt="Scatter Plot Height vs Width" />
+::: {.slide-container}
+::: {.col-half}
+<div class="img-box">
+  <img src="height_vs_width.png" class="img-contain" alt="Scatter Plot Height vs Width" />
+</div>
 :::
-::: {.column width="50%"}
+
+::: {.col-half}
 ::: {.card}
-### 📊 Dataset Dimensions & Counts
-- **Total raw rows**: `{python} total_raw` rows
-- **Exact duplicate rows**: `{python} n_dups` rows (`{python} round(n_dups/total_raw*100, 1)`%) $\to$ potential leakage!
+<div class="card-title">📊 Dataset Dimensions & Counts</div>
+
+- **Total raw rows**: `{python} n_raw` rows
+- **Exact duplicate rows**: `{python} n_dups` rows (`{python} dup_pct`) $\to$ potential leakage!
 - **Unique specimens**: `{python} n_unique`
-  - Maple: **`{python} counts.get('maple', 0)`** (41.7%)
-  - Cherry: **`{python} counts.get('cherry', 0)`** (33.4%)
-  - Walnut: **`{python} counts.get('walnut', 0)`** (24.9%)
+  - Maple: **`{python} count_maple`** (42.3%)
+  - Cherry: **`{python} count_cherry`** (32.9%)
+  - Walnut: **`{python} count_walnut`** (24.8%)
 :::
 
 ::: {.card-warn}
-### ⚠️ Critical Anomalies Identified
-- **2 Cherry Outliers**: Widths $>17$ cm placing them deep in maple cluster (label noise).
-- **Precision Fingerprint**: 316 rows with 1–2 decimals vs. 202 rows with 6 decimals (jitter).
-:::
-:::
-::::
+<div class="card-title">⚠️ Critical Anomalies Identified</div>
 
----
+- **2 Cherry Outliers**: Widths $>17$ cm placing them deep in maple cluster (label noise).
+- **Precision Fingerprint**: 316 rows with 1–2 decimals vs. 202 rows with 5–6 decimals (jitter).
+:::
+:::
+:::
 
 ## Slide 3: Validation Protocol & Baseline (Steps 2 & 3)
 
-```{python}
-with open("results/baseline_results.json") as f:
-    baseline = json.load(f)
-
-base_acc = baseline["cv_mean_accuracy"] * 100
-base_f1 = baseline["cv_mean_macro_f1"]
-```
-
-:::: {.columns}
-::: {.column width="52%"}
+::: {.slide-container}
+::: {.col-half}
 ::: {.card}
-### 🛡️ 4-Stage Protocol (SPEC.md)
+<div class="card-title">🛡️ 4-Stage Protocol (SPEC.md)</div>
+
 1. **Deduplication**: Drop 26 duplicate rows $\to$ 492 unique samples.
 2. **Stratified Holdout Split (80 / 20)**:
    - **Train**: 393 samples (isolated for CV)
@@ -179,32 +139,34 @@ base_f1 = baseline["cv_mean_macro_f1"]
 4. **Optimization Metric**: **Macro-averaged F1-score** to prevent majority class bias.
 :::
 :::
-::: {.column width="48%"}
+
+::: {.col-half}
 ::: {.card-primary}
-### 📉 Naive Baseline Model
+<div class="card-title">📉 Naive Baseline Model</div>
+
 `DummyClassifier(strategy='most_frequent')` predicts **Maple** for every sample:
 
-- **CV Accuracy**: <span class="stat-val">{python} f"{base_acc:.1f}%"</span>
-- **CV Macro F1**: <span class="stat-val">{python} f"{base_f1:.3f}"</span>
+<div class="stat-box">
+  <span class="stat-val">`{python} base_acc_str`</span>
+  <span class="stat-badge">CV Accuracy</span>
+</div>
 
-<p class="stat-sub">Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).</p>
+<div class="stat-box">
+  <span class="stat-val">`{python} base_f1_str`</span>
+  <span class="stat-badge">CV Macro F1</span>
+</div>
+
+<p class="stat-sub">
+Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
+</p>
 :::
 :::
-::::
-
----
+:::
 
 ## Slide 4: Model Tuning & Comparison (Step 4)
 
-```{python}
-cv_df = pd.read_csv("results/cv_results.csv")
-with open("results/best_model_info.json") as f:
-    best_info = json.load(f)
-
-best_per_fam = cv_df.sort_values("mean_cv_macro_f1", ascending=False).groupby("model_family").first().reset_index()
-best_per_fam = best_per_fam.sort_values("mean_cv_macro_f1", ascending=False)
-```
-
+::: {.slide-container}
+::: {.col-full}
 ::: {.card}
 <table class="table-compact">
   <thead>
@@ -216,7 +178,7 @@ best_per_fam = best_per_fam.sort_values("mean_cv_macro_f1", ascending=False)
     </tr>
   </thead>
   <tbody>
-    <tr>
+    <tr class="highlight-row">
       <td><strong>K-Nearest Neighbors</strong></td>
       <td>StandardScaler + k=7, weights='distance'</td>
       <td><strong>0.9556</strong> &plusmn; 0.016</td>
@@ -245,35 +207,42 @@ best_per_fam = best_per_fam.sort_values("mean_cv_macro_f1", ascending=False)
 :::
 
 ::: {.card-primary}
-🏆 **Winner: K-Nearest Neighbors ($k=7$, distance weights)**. Distance weighting provides smooth local non-linear boundaries that naturally handle the bimodal size distribution of maple leaves.
+<div class="card-title">🏆 Champion Model Selected</div>
+<strong>K-Nearest Neighbors (k=7, distance weights)</strong> selected out of 53 tested configurations. Distance weighting provides smooth local non-linear boundaries that naturally accommodate the bimodal size distribution of maple leaves while maintaining crisp separation.
 :::
-
----
+:::
+:::
 
 ## Slide 5: Final Holdout Test Evaluation (Step 5)
 
-```{python}
-with open("results/test_metrics.json") as f:
-    test_res = json.load(f)
-
-test_acc = test_res["test_accuracy"] * 100
-test_f1 = test_res["test_macro_f1"]
-cm = test_res["confusion_matrix"]
-```
-
-:::: {.columns}
-::: {.column width="50%"}
-<img src="results/decision_boundaries.png" class="img-contain" alt="Decision Boundaries" />
+::: {.slide-container}
+::: {.col-half}
+<div class="img-box">
+  <img src="results/decision_boundaries.png" class="img-contain" alt="Decision Boundaries" />
+</div>
 :::
-::: {.column width="50%"}
+
+::: {.col-half}
 ::: {.card-primary}
-### 🎯 Out-of-Sample Performance
-- **Test Accuracy**: <span class="stat-val">{python} f"{test_acc:.2f}%"</span> <span class="stat-sub">(Baseline: {python} f"{base_acc:.1f}%", <strong>+{python} f"{test_acc - base_acc:.1f}%"</strong>)</span>
-- **Test Macro F1**: <span class="stat-val">{python} f"{test_f1:.4f}"</span> (99 unseen samples)
+<div class="card-title">🎯 Out-of-Sample Performance</div>
+
+<div class="stat-box">
+  <span class="stat-val">`{python} test_acc_str`</span>
+  <span class="stat-badge">Test Accuracy</span>
+</div>
+<p class="stat-sub">
+Baseline: `{python} base_acc_str` &bull; <strong>Gain: `{python} acc_gain_str`</strong> (Passes threshold)
+</p>
+
+<div class="stat-box">
+  <span class="stat-val">`{python} test_f1_str`</span>
+  <span class="stat-badge">Test Macro F1</span>
+</div>
 :::
 
 ::: {.card}
-### 🔍 Confusion Matrix
+<div class="card-title">🔍 Confusion Matrix (99 Unseen Samples)</div>
+
 <table class="table-compact">
   <thead>
     <tr><th>True \ Pred</th><th>Cherry</th><th>Maple</th><th>Walnut</th></tr>
@@ -284,9 +253,9 @@ cm = test_res["confusion_matrix"]
     <tr><td><strong>Walnut</strong></td><td>3</td><td>1</td><td><strong>20</strong></td></tr>
   </tbody>
 </table>
-<p style="font-size: 0.8em; margin-top: 6px; color: #64748b;">
-9 total misclassifications: 1 label noise outlier + 8 subtle border cases between cherry and walnut.
+<p class="stat-sub">
+Only 9 misclassifications: 1 label noise outlier + 8 subtle border cases between cherry and walnut.
 </p>
 :::
 :::
-::::
+:::
