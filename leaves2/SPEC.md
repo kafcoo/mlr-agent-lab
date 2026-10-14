@@ -14,7 +14,7 @@ The result must answer:
   - `Leaf height` (float, range 3.8 cm – 25.5 cm)
   - `Leaf width` (float, range 2.5 cm – 29.7 cm)
   - `Tree type` (categorical target: `maple`, `cherry`, `walnut`)
-- **Class distribution**:
+- **Class distribution (original)**:
   - `maple`: 216 samples (41.7%)
   - `cherry`: 173 samples (33.4%)
   - `walnut`: 129 samples (24.9%)
@@ -26,20 +26,22 @@ The result must answer:
 
 ## 3. Constraints
 - **Data leakage prevention & Test set split**:
-  - Exact duplicate rows must be handled before splitting to prevent leakage between train and test sets (deduplication to the 492 unique rows).
-  - Hold-out test set: 20% of unique data (~98 samples), stratified by tree species with fixed seed `random_state=42`.
+  - Exact duplicate rows are dropped before splitting to prevent data leakage between train and test sets (yielding 492 unique records).
+  - Outlier policy: The 2 anomalous cherry rows are retained to evaluate real-world label noise robustness.
+  - Hold-out test set: Exactly 20% of unique data (99 samples), created via `train_test_split(..., test_size=0.20, stratify=y, random_state=42)`.
+  - The remaining 80% (393 samples) forms the training set.
   - The test set must be isolated immediately and evaluated strictly **once** at the very end.
 - **Cross-validation**:
-  - 5-fold Stratified Cross-Validation on the 80% training set (~394 samples) for all model selection and hyperparameter tuning.
+  - 5-fold Stratified Cross-Validation (`StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`) on the 80% training set for all model selection and hyperparameter tuning.
 - **Candidate Models & Search Space**:
-  1. *Baseline*: `DummyClassifier(strategy="most_frequent")` (always predicts `maple`).
-  2. *Logistic Regression*: `C` in `[0.01, 0.1, 1.0, 10.0, 100.0]`, with `StandardScaler()`.
-  3. *K-Nearest Neighbors (k-NN)*: `n_neighbors` in `[1, 3, 5, 7, 11, 15, 21]`, `weights` in `['uniform', 'distance']`, with `StandardScaler()`.
-  4. *Decision Tree*: `max_depth` in `[2, 3, 4, 5, 6, None]`, `min_samples_split` in `[2, 5, 10]`.
-  5. *Random Forest*: `n_estimators` in `[50, 100]`, `max_depth` in `[3, 5, 8, None]`, `min_samples_split` in `[2, 5]`.
+  1. *Baseline*: `DummyClassifier(strategy="most_frequent")` (always predicts majority class `maple`).
+  2. *Logistic Regression*: `StandardScaler()` + `LogisticRegression(random_state=42, max_iter=1000)` with `C` in `[0.01, 0.1, 1.0, 10.0, 100.0]`.
+  3. *K-Nearest Neighbors (k-NN)*: `StandardScaler()` + `KNeighborsClassifier()` with `n_neighbors` in `[1, 3, 5, 7, 11, 15, 21]` and `weights` in `['uniform', 'distance']`.
+  4. *Decision Tree*: `DecisionTreeClassifier(random_state=42)` with `max_depth` in `[2, 3, 4, 5, 6, None]` and `min_samples_split` in `[2, 5, 10]`.
+  5. *Random Forest*: `RandomForestClassifier(random_state=42)` with `n_estimators` in `[50, 100]`, `max_depth` in `[3, 5, 8, None]`, and `min_samples_split` in `[2, 5]`.
 - **Selection Metric**:
-  - Primary metric: **Macro-averaged F1 score (`macro_f1`)** on the 5-fold CV training folds (ensures equal importance across cherry, maple, and walnut).
-  - Secondary metrics: Overall Accuracy, per-class Precision/Recall, Confusion Matrix.
+  - Primary selection metric: **Macro-averaged F1 score (`macro_f1`)** averaged across the 5 validation folds (ensures balanced performance across all 3 classes).
+  - Secondary metrics logged: Overall Accuracy, per-class Precision/Recall/F1, and Confusion Matrix.
 - **Tuning budget**:
   - Exhaustive grid search over the specified candidate spaces (fast execution given $N < 500$ and 2 features).
   - Every trial result logged with mean CV score and standard deviation.
@@ -54,11 +56,11 @@ The project is complete when all of the following artifacts exist and checks pas
    - `leaves2/results/baseline_results.json`: Metrics of the baseline model.
    - `leaves2/results/cv_results.csv`: Table of all trained hyperparameter configurations with their CV scores.
    - `leaves2/results/best_model_info.json`: Selected model name, optimal hyperparameters, and validation score.
-   - `leaves2/results/test_metrics.json`: Final test set performance (Accuracy, Macro F1, Confusion Matrix).
+   - `leaves2/results/test_metrics.json`: Final test set performance (Accuracy, Macro F1, per-class metrics, Confusion Matrix).
    - `leaves2/results/test_predictions.csv`: Test set predictions with columns `[height, width, true_type, predicted_type]`.
 3. **Report and Presentation**:
-   - `leaves2/slides.qmd` rendered to `leaves2/slides.html` (5 slides via Quarto presenting goal, data findings, model comparisons, final test result, and conclusions).
+   - `leaves2/slides.qmd` rendered to `leaves2/slides.html` (5 slides via Quarto with revealjs format presenting goal, data findings, model comparisons, final test result, and conclusions).
 4. **Verifications**:
-   - Baseline accuracy is beaten by at least 40% (e.g. from ~42% baseline to >85% test accuracy).
-   - No data leakage: zero test rows present in train.
-   - A single command `uv run python leaves2/train.py` reproduces all numbers in `results/`.
+   - Baseline accuracy is beaten by at least 40 percentage points (e.g. from ~42% baseline to >85% test accuracy).
+   - No data leakage: zero test rows present in train (`len(set(train).intersection(set(test))) == 0`).
+   - A single command `uv run python leaves2/train.py` runs cleanly and reproduces all numbers in `results/`.
