@@ -1,74 +1,84 @@
 # mlr-agent-lab
 
-A lab for experimenting with coding agents: what a given model was actually
-asked to do, and how the result was verified.
+A laboratory for experimenting with AI coding agents: benchmarking prompts, model capabilities, strict verification criteria, and reproducible engineering artifacts under real-world constraints.
 
-**Goal:** keep a small, runnable sandbox where agent-driven changes are made
-under real rules (uv for Python, checks before "done") and where every run is
-logged in `RUNS.md` with the model that performed it and the evidence that it
-worked.
+🌐 **Live Web Showcase:** [kafcoo.github.io/mlr-agent-lab](https://kafcoo.github.io/mlr-agent-lab/)
 
-> The goal statement above is my reading of the project — correct it if it is
-> wrong. See `PLAN.md` for what is next.
+---
 
-## Layout
+## Repository Structure
 
-| File | Purpose |
-| --- | --- |
-| `AGENTS.md` | Working rules for agents. **Read this first.** |
-| `CLAUDE.md` | Imports `AGENTS.md` so Claude Code loads the rules. |
-| `README.md` | This file — goal and how to run things. |
-| `PLAN.md` | Progress and the next step. |
-| `RUNS.md` | Log of runs: model, request, how it was checked. |
-| `hello.py` | The current (only) executable. |
+Every project in this repository is organized into its own dedicated, self-contained directory:
 
-## Requirements
+| Directory / File | Description | Core Tech |
+| :--- | :--- | :--- |
+| [`leaves2/`](leaves2/) | **Botanical Classification ML Pipeline:** Exploratory data analysis, 5-fold CV hyperparameter search across 4 model families (k-NN champion with 90.91% test accuracy / 0.8983 Macro F1), interactive decision-boundary canvas report, and 5-slide Quarto presentation. | `scikit-learn`, `pandas`, `quarto` |
+| [`snake/`](snake/) | **Spinning Snake Game:** Retro arcade browser game with 90° board rotation mechanics every 4 pellets, non-reversing FIFO turn queue, responsive canvas rendering, and self-tests. | HTML5, Canvas 2D, JS |
+| [`slides-with-animation-pdf-note/`](slides-with-animation-pdf-note/) | **Technical Note & Animation Presentation:** 5-slide Quarto Reveal.js presentation with embedded gameplay GIF and a single-page A4 PDF technical specification note. | `quarto`, `tectonic`, LaTeX |
+| [`cable-clip/`](cable-clip/) | **Parametric 3D CAD:** Fully parametric M4-mounting cable clip exporting STEP solids, 3D printable STL meshes, and calculated physical metrics (volume, mass). | `cadquery` |
+| [`index.html`](index.html) | **Interactive Web Portal:** Central landing page for GitHub Pages featuring live metrics, presentation viewer, and research report links. | HTML5, Modern CSS |
+| [`hello.py`](hello.py) | **Sanity Canary:** Minimal environment smoke test required by working rules before completing runs. | Python 3.13 |
+| [`AGENTS.md`](AGENTS.md) | **Working Rules:** Strict instructions for agents (read before acting, Python through `uv`, real checks before claiming "done"). | Markdown |
+| [`CLAUDE.md`](CLAUDE.md) | Agent config importing `AGENTS.md` for session initialization. | Markdown |
+| [`PLAN.md`](PLAN.md) | Roadmap, completed milestones, and immediate next steps. | Markdown |
+| [`RUNS.md`](RUNS.md) | Comprehensive audit log of all agent runs, prompts, and empirical verification commands. | Markdown |
 
-- macOS (Apple Silicon)
-- `uv` — installed at `/opt/homebrew/bin/uv` (v0.13.0)
-- `gh` — GitHub CLI, `/opt/homebrew/bin/gh` (v2.102.0), logged in as `kafcoo`
+---
 
-Both were installed with Homebrew, no admin rights:
+## Prerequisites & Setup
 
-```bash
-brew install uv gh
-```
-
-## How to run things
+- **Python:** Managed strictly via [`uv`](https://docs.astral.sh/uv/) (Python 3.13)
+- **Dependencies:** Specified in `pyproject.toml` and locked in `uv.lock`
 
 ```bash
-uv run hello.py          # run the script
-uv run python hello.py   # equivalent, explicit interpreter
-uv run python -c "print('hi')"
+# Verify uv environment and run the smoke test
+uv run hello.py
 ```
 
-Use `uv`, not bare `python`/`pip`. There is currently no `pyproject.toml`
-because there are no dependencies yet — `uv run` works without one. The first
-time a third-party package is needed, run `uv add <package>` and commit the
-resulting `pyproject.toml` and `uv.lock`.
+---
 
-Ad-hoc tools do not need installing:
+## How to Run & Verify Projects
 
+### 1. Botanical Classification (`leaves2/`)
 ```bash
-uvx ruff check .         # run a tool without adding it as a dependency
+# Run data exploration
+uv run python leaves2/explore.py
+
+# Run cross-validation, hyperparameter tuning, and holdout evaluation
+uv run python leaves2/train.py
+
+# Render Quarto presentation and technical report to HTML
+uv run quarto render leaves2/slides.qmd
+uv run quarto render leaves2/report.qmd
 ```
 
-## Checks
-
-There is no test suite yet (see `PLAN.md`). The current check is that the
-script runs cleanly:
-
+### 2. Parametric 3D Cable Clip (`cable-clip/`)
 ```bash
-uv run hello.py          # expect: hello
+# Build and export default STEP, STL, and model.json
+uv run python cable-clip/cable_clip.py
+
+# Inspect parameter specifications
+uv run python cable-clip/cable_clip.py --list
 ```
 
-## Git
-
-Public repo: <https://github.com/kafcoo/mlr-agent-lab>
-
-Commits use the GitHub noreply address, set repo-local so the global git
-identity is untouched:
-
+### 3. Spinning Snake Game (`snake/`)
 ```bash
-git config user.email    # 158568591+kafcoo@users.noreply.github.com
+# Launch the game locally in your browser
+open snake/index.html
 ```
+
+### 4. Presentation & PDF Note (`slides-with-animation-pdf-note/`)
+```bash
+# Rebuild Quarto slides and compile LaTeX note
+uv run quarto render slides-with-animation-pdf-note/slides.qmd
+tectonic slides-with-animation-pdf-note/note.tex
+```
+
+---
+
+## Core Guidelines
+
+All automated agents follow the protocol defined in [`AGENTS.md`](AGENTS.md):
+1. **Always use `uv`** — never run raw `pip install` or modify system environments.
+2. **Empirical Verification** — commands must be executed and their actual outputs reported before claiming any task is done.
+3. **Repository Hygiene** — no personal emails, tokens, or untracked temporary files in commits.

@@ -1,35 +1,30 @@
 # PLAN.md
 
-Progress and next step. Agents: read this before starting work.
+Progress and next steps. Agents: read this before starting work.
 
 Last updated: 2026-10-14
 
 ## Now
 
-**Next step:** decide whether this lab needs a real test suite. If yes, the
-first task is `uv add --dev pytest`, a `tests/` directory, and a
-`uv run pytest` check wired into `AGENTS.md` §3. If no, delete this section
-and keep the "script runs cleanly" check as the bar.
+**Next step:** decide whether this lab needs a unified test harness across subprojects (e.g. `uv add --dev pytest` running smoke tests across all subdirectories). Currently each module has its own verification check (documented in `README.md` and `RUNS.md`).
 
 ## Done
 
-- [x] Folder created, `hello.py` added and pushed
-- [x] Public repo `kafcoo/mlr-agent-lab` created via `gh`
-- [x] Working rules written: `AGENTS.md`, imported by `CLAUDE.md`
-- [x] `README.md`, `PLAN.md`, `RUNS.md` created
-- [x] `uv` and `gh` installed via Homebrew, no admin rights
-- [x] Assignment "Medium · Slides with an animation, then a PDF note" completed in `slides-with-animation-pdf-note/` (Quarto presentation + Tectonic 1-page PDF note)
-- [x] Assignment "leaves2" ML pipeline completed in `leaves2/` (data exploration, SPEC.md, baseline DummyClassifier, hyperparameter tuning across 4 model families, final holdout test evaluation, Quarto 5-slide presentation, and reproducible report)
-- [x] `.gitignore` created (.venv/, __pycache__/, *.pyc, .DS_Store)
+- [x] Repository created and baseline `hello.py` smoke test established
+- [x] Working rules formulated in `AGENTS.md`, loaded via `CLAUDE.md`
+- [x] `uv` package management and dependencies tracked in `pyproject.toml` and `uv.lock`
+- [x] Assignment "Medium · Slides with an animation, then a PDF note" completed in `slides-with-animation-pdf-note/`
+- [x] Assignment "leaves2" ML pipeline completed in `leaves2/` (data exploration, SPEC.md, baseline, 5-fold CV across 4 model families, holdout test evaluation, Quarto presentation and interactive report)
+- [x] Retro arcade Snake game with dynamic rotation mechanics and canvas rendering in `snake/`
+- [x] Parametric 3D CadQuery cable clip with STEP/STL export and mass estimation in `cable-clip/`
+- [x] Automated GitHub Pages deployment workflow configured in `.github/workflows/deploy-pages.yml`
+- [x] Central interactive landing portal created at root `index.html`
+- [x] Repository cleanup: modular directory structure, README overhauled with clear instructions and without emails/personal data
 
 ## Open questions
 
-- What is the lab actually *for*? Currently it holds one 15-byte script and a
-  process. The `README.md` goal is inferred — confirm or replace it.
-- No `.gitignore` yet. A `.DS_Store` is already present and untracked; it will
-  be swept up by the next `git add -A` unless ignored.
-- No dependency file (`pyproject.toml`) yet, because there are no deps.
+- Future automated CI/CD checks: wire `pytest` into GitHub Actions on pull requests / main push.
 
 ## Backlog
 
-- First real experiment: pick a task worth logging in `RUNS.md`
+- Add 3D model web viewer (Three.js / stl-viewer) for `cable-clip/` artifacts in the GitHub Pages portal.

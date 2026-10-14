@@ -51,6 +51,14 @@ jobs:
           cp leaves2/height_vs_width.png _site/leaves2/height_vs_width.png || true
           cp -r leaves2/results _site/leaves2/ || true
 
+          # Snake game
+          mkdir -p _site/snake
+          cp -r snake/* _site/snake/
+
+          # Slides with animation & PDF note
+          mkdir -p _site/slides-with-animation-pdf-note
+          cp -r slides-with-animation-pdf-note/* _site/slides-with-animation-pdf-note/
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
