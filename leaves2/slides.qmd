@@ -49,7 +49,6 @@ base_f1_str = f"{base_f1:.3f}"
 with open("results/best_model_info.json") as f:
     best_info = json.load(f)
 best_family = best_info["best_model_family"]
-best_params_str = f"clf__n_neighbors={best_info['best_params']['clf__n_neighbors']}, weights='{best_info['best_params']['clf__weights']}'"
 
 # Load final test metrics
 with open("results/test_metrics.json") as f:
@@ -68,28 +67,29 @@ cm = test_res["confusion_matrix"]
 ::: {.slide-container}
 ::: {.col-half}
 ::: {.card}
-<div class="card-title">🎯 Research Question</div>
+<div class="card-title">🎯 Research Question & Morphology</div>
 
 **Can physical leaf dimensions reliably classify tree species?**
 
 - **Input Features**: Only two scalar measurements:
-  - `Leaf height` (cm)
-  - `Leaf width` (cm)
-- **Target Species**:
-  - **Maple** (*Acer*) — broad, palmate, bimodal size
-  - **Cherry** (*Prunus*) — small, compact, oval
-  - **Walnut** (*Juglans*) — elongated, compound
+  - `Leaf height` (cm) — tip to stem attachment
+  - `Leaf width` (cm) — maximum lateral span
+- **Target Species & Characteristics**:
+  - **Maple** (*Acer*) — broad, palmate, bimodal size distribution ($4 \dots 25.5$ cm), 81% wider than tall
+  - **Cherry** (*Prunus*) — small, compact, oval leaves ($3.8 \dots 16.9$ cm height, typically $4 \dots 6$ cm width)
+  - **Walnut** (*Juglans*) — elongated, slender compound leaflets ($10.3 \dots 21.5$ cm height, high aspect ratio)
 :::
 :::
 
 ::: {.col-half}
 ::: {.card-primary}
-<div class="card-title">📋 Rigorous Evaluation Criteria</div>
+<div class="card-title">📋 Evaluation Rules & Success Criteria</div>
 
-- **Zero Data Leakage**: Isolate test holdout before any model fitting or tuning.
-- **Beat the Baseline**: Exceed naive majority-class guessing by at least 40 percentage points.
-- **Cross-Validation Tuning**: 5-fold Stratified CV optimizing Macro F1 (equal class weights).
-- **Single Test Evaluation**: Test set touched strictly once for final unbiased reporting.
+- **Zero Data Leakage**: Isolate test holdout before any model fitting or preprocessing.
+- **Pre-split Deduplication**: Eliminate 26 exact repeats so no test sample has an identical twin in train.
+- **5-Fold Stratified CV**: Balance fold distributions and tune hyperparameters via Macro F1.
+- **Success Threshold**: Beat naive majority-class guessing (`{python} base_acc_str`) by at least 40 percentage points ($>82.2\%$).
+- **Strict Final Testing**: Evaluate the chosen model strictly once on the 99-sample holdout test set.
 :::
 :::
 :::
@@ -105,21 +105,21 @@ cm = test_res["confusion_matrix"]
 
 ::: {.col-half}
 ::: {.card}
-<div class="card-title">📊 Dataset Dimensions & Counts</div>
+<div class="card-title">📊 Dataset Composition & Class Balance</div>
 
-- **Total raw rows**: `{python} n_raw` rows
-- **Exact duplicate rows**: `{python} n_dups` rows (`{python} dup_pct`) $\to$ potential leakage!
-- **Unique specimens**: `{python} n_unique`
-  - Maple: **`{python} count_maple`** (42.3%)
-  - Cherry: **`{python} count_cherry`** (32.9%)
-  - Walnut: **`{python} count_walnut`** (24.8%)
+- **Total raw observations**: **`{python} n_raw`** rows
+- **Exact duplicate rows**: **`{python} n_dups`** rows (`{python} dup_pct`) $\to$ severe leakage risk if unhandled!
+- **Unique physical specimens**: **`{python} n_unique`** leaves
+  - **Maple**: `{python} count_maple` leaves (42.3%)
+  - **Cherry**: `{python} count_cherry` leaves (32.9%)
+  - **Walnut**: `{python} count_walnut` leaves (24.8%)
 :::
 
 ::: {.card-warn}
-<div class="card-title">⚠️ Critical Anomalies Identified</div>
+<div class="card-title">⚠️ Critical Data Anomalies Identified</div>
 
-- **2 Cherry Outliers**: Widths $>17$ cm placing them deep in maple cluster (label noise).
-- **Precision Fingerprint**: 316 rows with 1–2 decimals vs. 202 rows with 5–6 decimals (jitter).
+- **2 Cherry Outliers**: Rows 214 & 390 have width $> 17$ cm, lying deep inside the maple cluster (label noise / data entry error).
+- **Dual Precision Fingerprint**: 316 rows rounded to 1–2 decimals vs. 202 rows with 6 decimals (synthetic jittering).
 :::
 :::
 :::
@@ -129,14 +129,14 @@ cm = test_res["confusion_matrix"]
 ::: {.slide-container}
 ::: {.col-half}
 ::: {.card}
-<div class="card-title">🛡️ 4-Stage Protocol (SPEC.md)</div>
+<div class="card-title">🛡️ 4-Stage Experimental Protocol</div>
 
-1. **Deduplication**: Drop 26 duplicate rows $\to$ 492 unique samples.
+1. **Deduplication**: 518 raw $\to$ 492 unique samples before splitting.
 2. **Stratified Holdout Split (80 / 20)**:
-   - **Train**: 393 samples (isolated for CV)
+   - **Train**: 393 samples (used for 5-fold CV & model selection)
    - **Test**: 99 samples (locked away until final test)
-3. **5-Fold Stratified CV**: Folds preserve class ratios.
-4. **Optimization Metric**: **Macro-averaged F1-score** to prevent majority class bias.
+3. **5-Fold Stratified Cross-Validation**: Preserves identical class proportions across all validation folds (`random_state=42`).
+4. **Macro F1-score Selection**: Unweighted average across classes prevents favoring majority maple.
 :::
 :::
 
@@ -148,16 +148,16 @@ cm = test_res["confusion_matrix"]
 
 <div class="stat-box">
   <span class="stat-val">`{python} base_acc_str`</span>
-  <span class="stat-badge">CV Accuracy</span>
+  <span class="stat-badge-warn">Baseline CV Accuracy</span>
 </div>
 
 <div class="stat-box">
   <span class="stat-val">`{python} base_f1_str`</span>
-  <span class="stat-badge">CV Macro F1</span>
+  <span class="stat-badge-warn">Baseline CV Macro F1</span>
 </div>
 
 <p class="stat-sub">
-Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
+Required target threshold: <strong>&ge; 82.2%</strong> test accuracy (+40 percentage points over baseline).
 </p>
 :::
 :::
@@ -168,11 +168,13 @@ Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
 ::: {.slide-container}
 ::: {.col-full}
 ::: {.card}
+<div class="card-title">🔬 5-Fold Stratified CV Results (53 Configurations Tested)</div>
+
 <table class="table-compact">
   <thead>
     <tr>
       <th>Model Family</th>
-      <th>Best Configuration</th>
+      <th>Best Hyperparameter Configuration</th>
       <th>CV Macro F1</th>
       <th>CV Accuracy</th>
     </tr>
@@ -186,7 +188,7 @@ Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
     </tr>
     <tr>
       <td><strong>Random Forest</strong></td>
-      <td>n_estimators=50, max_depth=8, min_split=5</td>
+      <td>n_estimators=50, max_depth=8, min_samples_split=5</td>
       <td>0.9389 &plusmn; 0.019</td>
       <td>94.15%</td>
     </tr>
@@ -198,7 +200,7 @@ Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
     </tr>
     <tr>
       <td><strong>Logistic Regression</strong></td>
-      <td>StandardScaler + C=1.0</td>
+      <td>StandardScaler + C=1.0, max_iter=1000</td>
       <td>0.9280 &plusmn; 0.021</td>
       <td>93.13%</td>
     </tr>
@@ -207,8 +209,9 @@ Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
 :::
 
 ::: {.card-primary}
-<div class="card-title">🏆 Champion Model Selected</div>
-<strong>K-Nearest Neighbors (k=7, distance weights)</strong> selected out of 53 tested configurations. Distance weighting provides smooth local non-linear boundaries that naturally accommodate the bimodal size distribution of maple leaves while maintaining crisp separation.
+<div class="card-title">🏆 Winning Architecture: K-Nearest Neighbors (k=7)</div>
+
+Distance weighting provides smooth, local non-linear decision boundaries that cleanly capture the bimodal cluster shape of maples and the curved separation boundary between cherry and walnut.
 :::
 :::
 :::
@@ -224,37 +227,40 @@ Required threshold to pass: Test Accuracy &ge; 82.2% (+40 p.b.).
 
 ::: {.col-half}
 ::: {.card-primary}
-<div class="card-title">🎯 Out-of-Sample Performance</div>
+<div class="card-title">🎯 Out-of-Sample Performance (99 Test Samples)</div>
 
 <div class="stat-box">
   <span class="stat-val">`{python} test_acc_str`</span>
-  <span class="stat-badge">Test Accuracy</span>
+  <span class="stat-badge">Test Accuracy (`{python} acc_gain_str` vs Baseline)</span>
 </div>
-<p class="stat-sub">
-Baseline: `{python} base_acc_str` &bull; <strong>Gain: `{python} acc_gain_str`</strong> (Passes threshold)
-</p>
 
 <div class="stat-box">
   <span class="stat-val">`{python} test_f1_str`</span>
-  <span class="stat-badge">Test Macro F1</span>
+  <span class="stat-badge">Test Macro F1 Score</span>
 </div>
 :::
 
 ::: {.card}
-<div class="card-title">🔍 Confusion Matrix (99 Unseen Samples)</div>
+<div class="card-title">🔍 Holdout Confusion Matrix & Error Analysis</div>
 
 <table class="table-compact">
   <thead>
-    <tr><th>True \ Pred</th><th>Cherry</th><th>Maple</th><th>Walnut</th></tr>
+    <tr>
+      <th>True \ Pred</th>
+      <th>Cherry</th>
+      <th>Maple</th>
+      <th>Walnut</th>
+    </tr>
   </thead>
   <tbody>
-    <tr><td><strong>Cherry</strong></td><td><strong>30</strong></td><td>1 <em>(outlier)</em></td><td>2</td></tr>
-    <tr><td><strong>Maple</strong></td><td>0</td><td><strong>40</strong></td><td>2</td></tr>
-    <tr><td><strong>Walnut</strong></td><td>3</td><td>1</td><td><strong>20</strong></td></tr>
+    <tr><td><strong>Cherry (33)</strong></td><td><strong>30</strong></td><td>1 <em>(outlier)</em></td><td>2</td></tr>
+    <tr><td><strong>Maple (42)</strong></td><td>0</td><td><strong>40</strong></td><td>2</td></tr>
+    <tr><td><strong>Walnut (24)</strong></td><td>3</td><td>1</td><td><strong>20</strong></td></tr>
   </tbody>
 </table>
-<p class="stat-sub">
-Only 9 misclassifications: 1 label noise outlier + 8 subtle border cases between cherry and walnut.
+
+<p style="font-size: 0.88rem; color: #475569; margin-top: 8px;">
+Only 9 total errors: 1 mislabeled cherry outlier ($14.6 \times 17.1$ cm) + 8 subtle border overlaps between cherry and walnut.
 </p>
 :::
 :::
